@@ -288,6 +288,16 @@
   background-color: #f3e8ff;
 }
 
+.field-chip-object {
+  border-color: #059669;
+  background-color: #f0fdf4;
+}
+
+.field-chip-object:hover {
+  border-color: #047857;
+  background-color: #dcfce7;
+}
+
 .field-chip-reference {
   font-size: 0.75rem;
   padding: 0.15rem 0.4rem;
@@ -367,4 +377,20 @@
   text-align: center;
   background-color: #f4f6f8;
   border-radius: 8px;
+}
+
+.field-suggestions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.field-suggestions-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-text);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
 }

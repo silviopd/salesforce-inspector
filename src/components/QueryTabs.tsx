@@ -27,6 +27,12 @@ interface SalesforceDescribeResult {
   fields: SalesforceFieldDefinition[];
 }
 
+interface SalesforceObject {
+  name: string;
+  label: string;
+  labelPlural?: string;
+}
+
 interface QueryTabsProps {
   instanceUrl: string;
   accessToken: string;
@@ -50,8 +56,11 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [fieldCache, setFieldCache] = useState<Record<string, SalesforceFieldDefinition[]>>({});
   const [loadingFields, setLoadingFields] = useState(false);
   const [fieldsError, setFieldsError] = useState('');
+  const [objectsError, setObjectsError] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
   const queryEditorRef = useRef<HTMLTextAreaElement | null>(null);
+  const [objectsCache, setObjectsCache] = useState<SalesforceObject[]>([]);
+  const [loadingObjects, setLoadingObjects] = useState(false);
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
@@ -107,6 +116,15 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return match?.[1] ?? '';
   }, [activeQuery, cursorPosition]);
 
+  const isInFromClause = useMemo(() => {
+    if (!activeQuery || cursorPosition < 0) {
+      return false;
+    }
+    const prefix = activeQuery.slice(0, cursorPosition);
+    const fromMatch = prefix.match(/\bfrom\s+([a-zA-Z0-9_]*)$/i);
+    return fromMatch !== null;
+  }, [activeQuery, cursorPosition]);
+
   const relationshipContext = useMemo(() => {
     const parts = currentWord.split('.');
     
@@ -157,12 +175,54 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     if (!fieldsToUse.length) {
       return [] as SalesforceFieldDefinition[];
     }
+
     const term = relationshipContext.searchTerm.trim().toLowerCase();
     const list = term
-      ? fieldsToUse.filter(field => field.name.toLowerCase().startsWith(term))
+      ? fieldsToUse.filter(field => {
+          const nameToMatch = field.relationshipName || field.name;
+          return nameToMatch.toLowerCase().startsWith(term);
+        })
       : fieldsToUse;
     return list.slice(0, MAX_SUGGESTIONS);
   }, [relationshipContext, targetFields, availableFields]);
+
+  // Separar campos normales de campos de relación
+  const { normalFields, relationshipFields } = useMemo(() => {
+    if (relationshipContext.isRelationship) {
+      // Si estamos dentro de una relación, todos son campos normales del objeto relacionado
+      return { normalFields: filteredSuggestions, relationshipFields: [] };
+    }
+    
+    const normal: SalesforceFieldDefinition[] = [];
+    const relationships: SalesforceFieldDefinition[] = [];
+    
+    filteredSuggestions.forEach(field => {
+      if (field.relationshipName) {
+        // Si tiene relationshipName, agregarlo a relaciones
+        relationships.push(field);
+        // Si el campo termina en "Id", también agregarlo a campos normales
+        if (field.name.endsWith('Id')) {
+          normal.push(field);
+        }
+      } else {
+        // Si no tiene relationshipName, es un campo normal
+        normal.push(field);
+      }
+    });
+    
+    return { normalFields: normal, relationshipFields: relationships };
+  }, [filteredSuggestions, relationshipContext.isRelationship]);
+
+  const filteredObjects = useMemo(() => {
+    if (!objectsCache.length) {
+      return [] as SalesforceObject[];
+    }
+    const term = currentWord.trim().toLowerCase();
+    const list = term
+      ? objectsCache.filter(obj => obj.name.toLowerCase().startsWith(term))
+      : objectsCache;
+    return list.slice(0, MAX_SUGGESTIONS);
+  }, [objectsCache, currentWord]);
 
   const resultColumns = useMemo(() => {
     if (!results?.records?.length) {
@@ -312,12 +372,44 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     setCursorPosition(pos);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (objectsCache.length > 0) {
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingObjects(true);
+
+    invoke<{sobjects: SalesforceObject[]}>('list_sobjects', {
+      instanceUrl,
+      accessToken,
+    })
+      .then(response => {
+        if (!isMounted) return;
+        const sorted = [...response.sobjects].sort((a, b) => a.name.localeCompare(b.name));
+        setObjectsCache(sorted);
+      })
+      .catch(err => {
+        if (!isMounted) return;
+        console.error('Error cargando objetos:', err);
+        setObjectsError(typeof err === 'string' ? err : JSON.stringify(err));
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setLoadingObjects(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [instanceUrl, accessToken]);
+
   const updateCursorFromEvent = (event: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = event.currentTarget;
     setCursorPosition(target.selectionStart ?? 0);
   };
 
-  const insertFieldSuggestion = (fieldName: string) => {
+  const insertSuggestion = (text: string, isObject = false) => {
     if (!activeTabConfig) {
       return;
     }
@@ -325,17 +417,21 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     let startIndex: number;
     let textToInsert: string;
 
-    if (relationshipContext.isRelationship) {
+    if (isObject) {
+      // Insertar objeto en FROM
+      const wordLength = currentWord.length;
+      startIndex = Math.max(0, cursorPosition - wordLength);
+      textToInsert = text;
+    } else if (relationshipContext.isRelationship) {
       // Estamos en una relación (ej. Owner.Name)
-      // Solo reemplazar la parte después del último punto
       const searchTermLength = relationshipContext.searchTerm.length;
       startIndex = cursorPosition - searchTermLength;
-      textToInsert = fieldName;
+      textToInsert = text;
     } else {
       // Estamos en el objeto principal
       const wordLength = currentWord.length;
       startIndex = Math.max(0, cursorPosition - wordLength);
-      textToInsert = fieldName;
+      textToInsert = text;
     }
 
     const before = activeQuery.slice(0, startIndex);
@@ -352,6 +448,14 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       }
       setCursorPosition(nextCursor);
     });
+  };
+
+  const insertFieldSuggestion = (fieldName: string) => {
+    insertSuggestion(fieldName, false);
+  };
+
+  const insertObjectSuggestion = (objectName: string) => {
+    insertSuggestion(objectName, true);
   };
 
   const runQuery = async () => {
@@ -462,55 +566,113 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
 
       <div className="field-suggestions">
         <div className="field-suggestions-header">
-          <span>Field suggestions</span>
-          {activeObjectName && (
+          <span>{isInFromClause ? 'Object suggestions' : 'Field suggestions'}</span>
+          {!isInFromClause && activeObjectName && (
             <span className="field-suggestions-object">
               {relationshipContext.isRelationship ? targetObjectName : activeObjectName}
             </span>
           )}
-          {loadingFields && <span className="field-suggestions-loading">Cargando...</span>}
+          {(loadingFields || loadingObjects) && <span className="field-suggestions-loading">Cargando...</span>}
         </div>
-        {fieldsError && (
+        {isInFromClause && objectsError && (
+          <div className="field-suggestions-error">{objectsError}</div>
+        )}
+        {!isInFromClause && fieldsError && (
           <div className="field-suggestions-error">{fieldsError}</div>
         )}
-        {!activeObjectName && !fieldsError && (
-          <div className="field-suggestions-empty">
-            Agrega una cláusula FROM para obtener sugerencias de campos.
-          </div>
-        )}
-        {activeObjectName && !fieldsError && !loadingFields && (
+        {isInFromClause ? (
           <>
-            {filteredSuggestions.length ? (
+            {filteredObjects.length ? (
               <div className="field-suggestions-list">
-                {filteredSuggestions.map(field => {
-                  const isInRelationshipContext = relationshipContext.isRelationship;
-                  const showAsRelationship = !isInRelationshipContext && field.relationshipName;
-                  const displayName = showAsRelationship ? (field.relationshipName || field.name) : field.name;
-                  
-                  return (
-                    <button
-                      type="button"
-                      key={field.name}
-                      className={`field-chip ${showAsRelationship ? 'field-chip-relationship' : ''}`}
-                      onClick={() => insertFieldSuggestion(displayName)}
-                    >
-                      <span className="field-chip-name">
-                        {displayName}
-                        {showAsRelationship && <span className="field-chip-relation-icon">🔗</span>}
-                      </span>
-                      {field.label && field.label !== field.name && (
-                        <span className="field-chip-label">{field.label}</span>
-                      )}
-                      {showAsRelationship && field.referenceTo && field.referenceTo.length > 0 && (
-                        <span className="field-chip-reference">→ {field.referenceTo.join(', ')}</span>
-                      )}
-                      {field.fieldType && (
-                        <span className="field-chip-type">{field.fieldType}</span>
-                      )}
-                    </button>
-                  );
-                })}
+                {filteredObjects.map(obj => (
+                  <button
+                    type="button"
+                    key={obj.name}
+                    className="field-chip field-chip-object"
+                    onClick={() => insertObjectSuggestion(obj.name)}
+                  >
+                    <span className="field-chip-name">{obj.name}</span>
+                    {obj.label && obj.label !== obj.name && (
+                      <span className="field-chip-label">{obj.label}</span>
+                    )}
+                  </button>
+                ))}
               </div>
+            ) : (
+              <div className="field-suggestions-empty">
+                {loadingObjects ? 'Cargando objetos...' : 'Escribe "FROM" seguido del nombre del objeto.'}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {!activeObjectName && !fieldsError && (
+              <div className="field-suggestions-empty">
+                Agrega una cláusula FROM para obtener sugerencias de campos.
+              </div>
+            )}
+            {activeObjectName && !fieldsError && !loadingFields && (
+              <>
+                {filteredSuggestions.length ? (
+              <>
+                {normalFields.length > 0 && (
+                  <div className="field-suggestions-section">
+                    <div className="field-suggestions-section-title">
+                      Campos de {relationshipContext.isRelationship ? targetObjectName : activeObjectName}
+                    </div>
+                    <div className="field-suggestions-list">
+                      {normalFields.map(field => (
+                        <button
+                          type="button"
+                          key={field.name}
+                          className="field-chip"
+                          onClick={() => insertFieldSuggestion(field.name)}
+                        >
+                          <span className="field-chip-name">{field.name}</span>
+                          {field.label && field.label !== field.name && (
+                            <span className="field-chip-label">{field.label}</span>
+                          )}
+                          {field.fieldType && (
+                            <span className="field-chip-type">{field.fieldType}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {relationshipFields.length > 0 && (
+                  <div className="field-suggestions-section">
+                    <div className="field-suggestions-section-title">
+                      Relaciones
+                    </div>
+                    <div className="field-suggestions-list">
+                      {relationshipFields.map(field => (
+                        <button
+                          type="button"
+                          key={field.name}
+                          className="field-chip field-chip-relationship"
+                          onClick={() => insertFieldSuggestion(field.relationshipName || field.name)}
+                        >
+                          <span className="field-chip-name">
+                            {field.relationshipName || field.name}
+                            <span className="field-chip-relation-icon">🔗</span>
+                          </span>
+                          {field.label && field.label !== field.name && (
+                            <span className="field-chip-label">{field.label}</span>
+                          )}
+                          {field.referenceTo && field.referenceTo.length > 0 && (
+                            <span className="field-chip-reference">→ {field.referenceTo.join(', ')}</span>
+                          )}
+                          {field.fieldType && (
+                            <span className="field-chip-type">{field.fieldType}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="field-suggestions-empty">
                 No hay coincidencias para "{relationshipContext.searchTerm}".
@@ -520,6 +682,8 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
               <div className="field-suggestions-hint">
                 Mostrando {MAX_SUGGESTIONS} de {(relationshipContext.isRelationship ? targetFields : availableFields).length} campos. Sigue escribiendo para filtrar más.
               </div>
+            )}
+              </>
             )}
           </>
         )}

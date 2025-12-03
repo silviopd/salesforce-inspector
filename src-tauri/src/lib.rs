@@ -38,6 +38,20 @@ struct SalesforceDescribeResult {
     fields: Vec<SalesforceFieldDefinition>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SalesforceObject {
+    name: String,
+    label: String,
+    label_plural: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SalesforceObjectsResult {
+    sobjects: Vec<SalesforceObject>,
+}
+
 #[tauri::command]
 async fn salesforce_login(
     alias: String,
@@ -256,6 +270,75 @@ async fn describe_sobject(
     Ok(SalesforceDescribeResult { fields })
 }
 
+#[tauri::command]
+async fn list_sobjects(
+    instance_url: String,
+    access_token: String,
+) -> Result<SalesforceObjectsResult, String> {
+    let client = reqwest::Client::new();
+
+    println!("list_sobjects called with instance_url: {}", instance_url);
+    println!("access_token length: {}", access_token.len());
+
+    let url = format!(
+        "{}/services/data/{}/sobjects",
+        instance_url.trim_end_matches('/'),
+        API_VERSION
+    );
+
+    println!("Fetching sobjects from: {}", url);
+
+    let response = client
+        .get(&url)
+        .bearer_auth(&access_token)
+        .send()
+        .await
+        .map_err(|e| format!("Error al obtener objetos: {}", e))?;
+
+    let status = response.status();
+    
+    println!("Response status: {}", status);
+    
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Error al leer respuesta: {}", e))?;
+
+    println!("Response body (first 200 chars): {}", &body.chars().take(200).collect::<String>());
+
+    if !status.is_success() {
+        println!("Error response body: {}", body);
+        return Err(format!("Error de Salesforce ({}): {}", status, body));
+    }
+
+    let value: Value = serde_json::from_str(&body)
+        .map_err(|e| format!("Error al parsear lista de objetos: {}", e))?;
+
+    let sobjects = value
+        .get("sobjects")
+        .and_then(|v| v.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let name = item.get("name")?.as_str()?;
+                    let label = item.get("label")?.as_str()?;
+                    Some(SalesforceObject {
+                        name: name.to_string(),
+                        label: label.to_string(),
+                        label_plural: item
+                            .get("labelPlural")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Ok(SalesforceObjectsResult { sobjects })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -265,7 +348,8 @@ pub fn run() {
             salesforce_login,
             salesforce_logout,
             run_soql_query,
-            describe_sobject
+            describe_sobject,
+            list_sobjects
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
