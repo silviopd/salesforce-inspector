@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Store } from "@tauri-apps/plugin-store";
+import QueryTabs from "./components/QueryTabs";
 import "./App.css";
+import "./components/QueryTabs.css";
 
 interface SalesforceAuthResponse {
   access_token: string;
@@ -288,11 +290,7 @@ function App() {
             )}
 
             {currentSubTab === 'queries' && (
-              <div className="queries-section">
-                <h3>SOQL Queries</h3>
-                <p>Aquí podrás ejecutar queries SOQL contra Salesforce</p>
-                {/* TODO: Implementar editor de queries */}
-              </div>
+              <QueryTabs />
             )}
 
             {currentSubTab === 'users' && (

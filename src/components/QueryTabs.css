@@ -1,0 +1,173 @@
+:root {
+  --dark-bg: #444;
+  --medium-bg: #666;
+  --light-bg: #f5f5f5;
+  --border-color: #555;
+  --text-color: #fff;
+  --primary-blue: #007bff;
+  --danger-red: #dc3545;
+}
+
+.export-query-container {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--light-bg);
+  box-sizing: border-box; /* Asegurar que el padding no cause desbordamiento */
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  background-color: var(--dark-bg);
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.left-toolbar, .right-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.toolbar select, .toolbar input[type="text"], .toolbar button {
+  background-color: var(--medium-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+.toolbar button:hover {
+  background-color: #777;
+}
+
+.right-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-color);
+}
+
+.query-tabs-bar {
+  display: flex;
+  background-color: #e0e0e0;
+  padding-top: 0.5rem;
+  padding-left: 0.5rem;
+}
+
+.query-tab {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  background-color: #d0d0d0;
+  border: 1px solid #bbb;
+  border-bottom: none;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-right: 0.25rem;
+  color: #333; /* Color de texto más oscuro para pestañas inactivas */
+}
+
+.query-tab.active {
+  background-color: #fff;
+  border-color: #bbb;
+  position: relative;
+  bottom: -1px;
+  border-bottom: 1px solid #fff;
+  color: #000; /* Asegurar que el texto de la pestaña activa sea negro */
+}
+
+.close-query-tab {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0;
+  color: #666;
+}
+
+.add-query-tab {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0.5rem;
+  color: #333; /* Color oscuro para el botón '+' */
+}
+
+.query-editor {
+  width: 100%;
+  height: 150px;
+  border: 1px solid #bbb;
+  padding: 1rem;
+  font-family: monospace;
+  resize: vertical;
+  margin-top: -1px;
+  box-sizing: border-box; /* Añadido para corregir el desbordamiento */
+}
+
+.query-actions, .export-result-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background-color: #e9e9e9;
+  border-top: 1px solid #ccc;
+}
+
+.query-actions {
+  justify-content: flex-end;
+}
+
+.query-actions button, .result-toolbar button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background-color: #fff; /* Fondo más claro para mayor contraste */
+  color: #333;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.query-actions button:hover, .result-toolbar button:hover {
+  background-color: #f8f8f8;
+}
+
+.run-button {
+  background-color: var(--primary-blue) !important;
+  color: white;
+  border: none;
+}
+
+.danger-button {
+  background-color: var(--danger-red) !important;
+  color: white;
+  border: none;
+}
+
+.icon-button {
+  background-color: #f0f0f0;
+  padding: 0.5rem;
+}
+
+.result-toolbar, .result-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.result-status span {
+  color: #333; /* Color oscuro para el texto de estado */
+}
+
+.result-toolbar input[type="text"], .result-status button {
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--medium-bg);
+    color: var(--text-color);
+}
