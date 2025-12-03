@@ -10,11 +10,15 @@ interface SalesforceAuthResponse {
   alias: string;
 }
 
+type SubTab = 'queries' | 'users' | 'info';
+
 const store = new Store("auth.json");
 
 function App() {
   const [connections, setConnections] = useState<SalesforceAuthResponse[]>([]);
   const [activeTab, setActiveTab] = useState<number>(0);
+  const [connectionSubTabs, setConnectionSubTabs] = useState<Record<string, SubTab>>({});
+  const [pendingActiveAlias, setPendingActiveAlias] = useState<string | null>(null);
   const [alias, setAlias] = useState("");
   const [instanceUrl, setInstanceUrl] = useState("https://login.salesforce.com");
   const [isLoading, setIsLoading] = useState(false);
@@ -28,16 +32,29 @@ function App() {
   async function loadSavedConnections() {
     try {
       const saved = await store.get<SalesforceAuthResponse[]>("connections");
+      const savedSubTabs = await store.get<Record<string, SubTab>>("subTabs");
+
       if (saved && saved.length > 0) {
         setConnections(saved);
+
+        const mergedTabs = saved.reduce<Record<string, SubTab>>((acc, conn) => {
+          acc[conn.alias] = savedSubTabs?.[conn.alias] ?? 'queries';
+          return acc;
+        }, {});
+
+        setConnectionSubTabs(mergedTabs);
       }
     } catch (err) {
       console.log("No hay conexiones guardadas");
     }
   }
 
-  async function saveConnections(conns: SalesforceAuthResponse[]) {
+  async function persistState(
+    conns: SalesforceAuthResponse[],
+    subTabs: Record<string, SubTab>
+  ) {
     await store.set("connections", conns);
+    await store.set("subTabs", subTabs);
     await store.save();
   }
 
@@ -65,10 +82,15 @@ function App() {
       });
 
       const newConnections = [...connections, response];
+      const newSubTabs = { ...connectionSubTabs, [response.alias]: 'queries' };
+
       setConnections(newConnections);
-      await saveConnections(newConnections);
+      setConnectionSubTabs(newSubTabs);
       setActiveTab(newConnections.length - 1);
+      await persistState(newConnections, newSubTabs);
+      setPendingActiveAlias(response.alias);
       setAlias("");
+      setError("");
       console.log("Login exitoso:", response);
     } catch (err) {
       setError(`Error de autenticación: ${err}`);
@@ -85,8 +107,14 @@ function App() {
     try {
       await invoke("salesforce_logout", { alias: connection.alias });
       const newConnections = connections.filter((_, i) => i !== index);
+      const { [connection.alias]: _, ...remainingSubTabs } = connectionSubTabs;
+
       setConnections(newConnections);
-      await saveConnections(newConnections);
+      setConnectionSubTabs(remainingSubTabs);
+      await persistState(newConnections, remainingSubTabs);
+      if (pendingActiveAlias === connection.alias) {
+        setPendingActiveAlias(null);
+      }
       
       // Ajustar el tab activo
       if (activeTab >= newConnections.length && newConnections.length > 0) {
@@ -102,7 +130,33 @@ function App() {
     }
   }
 
+  async function handleSubTabChange(alias: string, tab: SubTab) {
+    const updatedSubTabs = { ...connectionSubTabs, [alias]: tab };
+    setConnectionSubTabs(updatedSubTabs);
+
+    try {
+      await persistState(connections, updatedSubTabs);
+    } catch (err) {
+      console.error("Error al guardar la pestaña activa:", err);
+    }
+  }
+
   const activeConnection = connections[activeTab];
+  const currentSubTab = activeConnection
+    ? connectionSubTabs[activeConnection.alias] ?? 'queries'
+    : 'queries';
+
+  useEffect(() => {
+    if (!pendingActiveAlias) {
+      return;
+    }
+
+    const index = connections.findIndex(conn => conn.alias === pendingActiveAlias);
+    if (index !== -1) {
+      setActiveTab(index);
+      setPendingActiveAlias(null);
+    }
+  }, [connections, pendingActiveAlias]);
 
   return (
     <main className="container">
@@ -113,7 +167,10 @@ function App() {
             <button
               key={conn.alias}
               className={`tab ${activeTab === index ? 'active' : ''}`}
-              onClick={() => setActiveTab(index)}
+              onClick={() => {
+                setActiveTab(index);
+                setError("");
+              }}
             >
               {conn.alias}
               <span 
@@ -127,7 +184,16 @@ function App() {
               </span>
             </button>
           ))}
-          <button className="tab new-tab" onClick={() => setActiveTab(-1)}>
+          <button
+            className="tab new-tab"
+            onClick={() => {
+              setActiveTab(-1);
+              setAlias("");
+              setInstanceUrl("https://login.salesforce.com");
+              setError("");
+              setPendingActiveAlias(null);
+            }}
+          >
             + Nueva Conexión
           </button>
         </div>
@@ -174,25 +240,68 @@ function App() {
         </form>
       ) : activeConnection ? (
         <div className="connection-details">
-          <div className="result success">
-            <h3>✅ Conexión Activa</h3>
-            <div className="result-details">
-              <p><strong>Alias:</strong> {activeConnection.alias}</p>
-              <p><strong>Username:</strong> {activeConnection.username}</p>
-              
-              <p><strong>Instance URL:</strong></p>
-              <div className="code-block">{activeConnection.instance_url}</div>
-              
-              <p><strong>Access Token:</strong></p>
-              <div className="code-block">{activeConnection.access_token}</div>
-            </div>
-            <button 
-              onClick={() => handleLogout(activeTab)} 
-              className="login-button danger"
-              style={{ marginTop: "20px" }}
+          {/* Sub-tabs */}
+          <div className="sub-tabs">
+            <button
+              className={`sub-tab ${currentSubTab === 'info' ? 'active' : ''}`}
+              onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'info')}
             >
-              Cerrar Sesión
+              Información
             </button>
+            <button
+              className={`sub-tab ${currentSubTab === 'queries' ? 'active' : ''}`}
+              onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'queries')}
+            >
+              Queries
+            </button>
+            <button
+              className={`sub-tab ${currentSubTab === 'users' ? 'active' : ''}`}
+              onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'users')}
+            >
+              Users
+            </button>
+          </div>
+
+          {/* Contenido del sub-tab */}
+          <div className="sub-tab-content">
+            {currentSubTab === 'info' && (
+              <div className="result success">
+                <h3>✅ Conexión Activa</h3>
+                <div className="result-details">
+                  <p><strong>Alias:</strong> {activeConnection.alias}</p>
+                  <p><strong>Username:</strong> {activeConnection.username}</p>
+                  
+                  <p><strong>Instance URL:</strong></p>
+                  <div className="code-block">{activeConnection.instance_url}</div>
+                  
+                  <p><strong>Access Token:</strong></p>
+                  <div className="code-block">{activeConnection.access_token}</div>
+                </div>
+                <button 
+                  onClick={() => handleLogout(activeTab)} 
+                  className="login-button danger"
+                  style={{ marginTop: "20px" }}
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            )}
+
+            {currentSubTab === 'queries' && (
+              <div className="queries-section">
+                <h3>SOQL Queries</h3>
+                <p>Aquí podrás ejecutar queries SOQL contra Salesforce</p>
+                {/* TODO: Implementar editor de queries */}
+              </div>
+            )}
+
+            {currentSubTab === 'users' && (
+              <div className="users-section">
+                <h3>Usuarios</h3>
+                <p>Aquí podrás gestionar usuarios de Salesforce</p>
+                {/* TODO: Implementar gestión de usuarios */}
+              </div>
+            )}
           </div>
         </div>
       ) : null}

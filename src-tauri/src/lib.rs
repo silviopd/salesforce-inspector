@@ -34,8 +34,6 @@ async fn salesforce_login(
         return Err(format!("Error en el login: {}", error));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    
     // Ahora obtener el access token
     let token_output = Command::new("sf")
         .args([
