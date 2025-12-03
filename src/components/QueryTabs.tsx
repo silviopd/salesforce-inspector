@@ -506,6 +506,11 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       return;
     }
 
+    // Normalizar comillas: reemplazar comillas curvas/tipográficas por comillas rectas
+    const normalizedQuery = trimmedQuery
+      .replace(/[\u2018\u2019]/g, "'")  // Comillas simples curvas → rectas
+      .replace(/[\u201C\u201D]/g, '"'); // Comillas dobles curvas → rectas
+
     setIsRunning(true);
     setError('');
     setResultStatus('Ejecutando consulta...');
@@ -514,7 +519,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       const response = await invoke<SalesforceQueryResult>('run_soql_query', {
         instanceUrl,
         accessToken,
-        query: trimmedQuery,
+        query: normalizedQuery,
         useTooling,
         includeDeleted,
       });
