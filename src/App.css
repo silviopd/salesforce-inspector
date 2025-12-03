@@ -61,7 +61,8 @@ h1 {
 }
 
 input,
-button {
+button,
+select {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
@@ -72,6 +73,106 @@ button {
   background-color: #ffffff;
   transition: border-color 0.25s;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+}
+
+.subtitle {
+  color: #666;
+  margin-bottom: 30px;
+  font-size: 1.1em;
+}
+
+.login-form {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 30px;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-group small {
+  display: block;
+  margin-top: 5px;
+  color: #666;
+  font-size: 0.85em;
+}
+
+.login-button {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  font-size: 1.1em;
+  background-color: #0176d3;
+  color: white;
+  border: none;
+}
+
+.login-button:hover:not(:disabled) {
+  background-color: #014486;
+}
+
+.login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.result {
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.result.success {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+}
+
+.result.error {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.result-details {
+  margin-top: 15px;
+}
+
+.result-details p {
+  margin: 15px 0 5px 0;
+  font-weight: 600;
+}
+
+.code-block {
+  background-color: #f4f4f4;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 0.9em;
+  word-break: break-all;
+  color: #333;
+  margin-top: 5px;
 }
 
 button {
@@ -106,11 +207,22 @@ button {
   }
 
   input,
-  button {
+  button,
+  select {
     color: #ffffff;
     background-color: #0f0f0f98;
   }
   button:active {
     background-color: #0f0f0f69;
+  }
+
+  .login-form {
+    background-color: #1a1a1a;
+  }
+
+  .code-block {
+    background-color: #2a2a2a;
+    border-color: #444;
+    color: #f6f6f6;
   }
 }

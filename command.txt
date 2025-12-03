@@ -1,0 +1,2 @@
+#ejecutar la app en escritorio
+npm run tauri dev
