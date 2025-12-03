@@ -197,6 +197,129 @@
   text-align: left;
 }
 
+.field-suggestions {
+  margin: 0.75rem 1rem 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--medium-bg);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.field-suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.field-suggestions-object {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background-color: #e0eaff;
+  color: #1d4ed8;
+  font-size: 0.85rem;
+}
+
+.field-suggestions-loading {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--muted-text);
+}
+
+.field-suggestions-error {
+  padding: 0.75rem;
+  border-radius: 6px;
+  background-color: #fdecea;
+  color: #b71c1c;
+  border: 1px solid #f5b7b1;
+  font-size: 0.9rem;
+}
+
+.field-suggestions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.field-chip {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background-color: #f8fafc;
+  color: var(--text-color);
+  padding: 0.35rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.field-chip:hover {
+  border-color: var(--primary-blue);
+  background-color: #e8f2ff;
+  color: #0b4abf;
+}
+
+.field-chip-name {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.field-chip-relation-icon {
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.field-chip-relationship {
+  border-color: #9333ea;
+  background-color: #faf5ff;
+}
+
+.field-chip-relationship:hover {
+  border-color: #7c3aed;
+  background-color: #f3e8ff;
+}
+
+.field-chip-reference {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background-color: #ede9fe;
+  color: #7c3aed;
+  font-weight: 500;
+}
+
+.field-chip-label {
+  color: var(--muted-text);
+  font-size: 0.8rem;
+}
+
+.field-chip-type {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  background-color: #eef2f7;
+  color: var(--muted-text);
+}
+
+.field-suggestions-empty {
+  color: var(--muted-text);
+  font-size: 0.9rem;
+}
+
+.field-suggestions-hint {
+  color: var(--muted-text);
+  font-size: 0.8rem;
+}
+
 .query-results {
   padding: 1rem;
   overflow: auto;

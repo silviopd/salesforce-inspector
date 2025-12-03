@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::process::Command;
 
+const API_VERSION: &str = "v58.0";
+
 #[derive(Debug, Serialize, Deserialize)]
 struct SalesforceAuthResponse {
     access_token: String,
@@ -17,6 +19,23 @@ struct SalesforceQueryResult {
     total_size: u32,
     records: Vec<Value>,
     next_records_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SalesforceFieldDefinition {
+    name: String,
+    label: Option<String>,
+    #[serde(rename = "type")]
+    field_type: Option<String>,
+    relationship_name: Option<String>,
+    reference_to: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SalesforceDescribeResult {
+    fields: Vec<SalesforceFieldDefinition>,
 }
 
 #[tauri::command]
@@ -104,8 +123,6 @@ async fn run_soql_query(
     use_tooling: bool,
     include_deleted: bool,
 ) -> Result<SalesforceQueryResult, String> {
-    const API_VERSION: &str = "v58.0";
-
     let client = reqwest::Client::new();
     let endpoint = if use_tooling {
         format!("/services/data/{}/tooling/query", API_VERSION)
@@ -160,6 +177,85 @@ async fn run_soql_query(
     })
 }
 
+#[tauri::command]
+async fn describe_sobject(
+    instance_url: String,
+    access_token: String,
+    object_name: String,
+) -> Result<SalesforceDescribeResult, String> {
+    let client = reqwest::Client::new();
+    let trimmed_object = object_name.trim();
+
+    if trimmed_object.is_empty() {
+        return Err("El nombre del objeto es requerido".to_string());
+    }
+
+    let url = format!(
+        "{}/services/data/{}/sobjects/{}/describe",
+        instance_url.trim_end_matches('/'),
+        API_VERSION,
+        trimmed_object
+    );
+
+    let response = client
+        .get(&url)
+        .bearer_auth(&access_token)
+        .send()
+        .await
+        .map_err(|e| format!("Error al obtener describe: {}", e))?;
+
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Error al leer respuesta: {}", e))?;
+
+    if !status.is_success() {
+        return Err(format!("Error de Salesforce ({}): {}", status, body));
+    }
+
+    let value: Value = serde_json::from_str(&body)
+        .map_err(|e| format!("Error al parsear describe de Salesforce: {}", e))?;
+
+    let fields = value
+        .get("fields")
+        .and_then(|v| v.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let name = item.get("name")?.as_str()?;
+                    Some(SalesforceFieldDefinition {
+                        name: name.to_string(),
+                        label: item
+                            .get("label")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        field_type: item
+                            .get("type")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        relationship_name: item
+                            .get("relationshipName")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string()),
+                        reference_to: item
+                            .get("referenceTo")
+                            .and_then(|v| v.as_array())
+                            .map(|arr| {
+                                arr.iter()
+                                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                                    .collect::<Vec<_>>()
+                            }),
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    Ok(SalesforceDescribeResult { fields })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -168,7 +264,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             salesforce_login,
             salesforce_logout,
-            run_soql_query
+            run_soql_query,
+            describe_sobject
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
