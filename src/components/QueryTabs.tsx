@@ -590,11 +590,9 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                     key={obj.name}
                     className="field-chip field-chip-object"
                     onClick={() => insertObjectSuggestion(obj.name)}
+                    title={obj.label && obj.label !== obj.name ? obj.label : undefined}
                   >
                     <span className="field-chip-name">{obj.name}</span>
-                    {obj.label && obj.label !== obj.name && (
-                      <span className="field-chip-label">{obj.label}</span>
-                    )}
                   </button>
                 ))}
               </div>
@@ -621,22 +619,26 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                       Campos de {relationshipContext.isRelationship ? targetObjectName : activeObjectName}
                     </div>
                     <div className="field-suggestions-list">
-                      {normalFields.map(field => (
-                        <button
-                          type="button"
-                          key={field.name}
-                          className="field-chip"
-                          onClick={() => insertFieldSuggestion(field.name)}
-                        >
-                          <span className="field-chip-name">{field.name}</span>
-                          {field.label && field.label !== field.name && (
-                            <span className="field-chip-label">{field.label}</span>
-                          )}
-                          {field.fieldType && (
-                            <span className="field-chip-type">{field.fieldType}</span>
-                          )}
-                        </button>
-                      ))}
+                      {normalFields.map(field => {
+                        const tooltipText = field.label && field.label !== field.name 
+                          ? (field.fieldType ? `${field.label} (${field.fieldType})` : field.label)
+                          : (field.fieldType || undefined);
+                        
+                        return (
+                          <button
+                            type="button"
+                            key={field.name}
+                            className="field-chip"
+                            onClick={() => insertFieldSuggestion(field.name)}
+                            title={tooltipText}
+                          >
+                            <span className="field-chip-name">{field.name}</span>
+                            {field.fieldType && (
+                              <span className="field-chip-type-inline">{field.fieldType}</span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -653,19 +655,14 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                           key={field.name}
                           className="field-chip field-chip-relationship"
                           onClick={() => insertFieldSuggestion(field.relationshipName || field.name)}
+                          title={field.label || field.name}
                         >
                           <span className="field-chip-name">
                             {field.relationshipName || field.name}
                             <span className="field-chip-relation-icon">🔗</span>
                           </span>
-                          {field.label && field.label !== field.name && (
-                            <span className="field-chip-label">{field.label}</span>
-                          )}
                           {field.referenceTo && field.referenceTo.length > 0 && (
                             <span className="field-chip-reference">→ {field.referenceTo.join(', ')}</span>
-                          )}
-                          {field.fieldType && (
-                            <span className="field-chip-type">{field.fieldType}</span>
                           )}
                         </button>
                       ))}

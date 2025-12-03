@@ -258,6 +258,9 @@
   font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s ease;
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
 }
 
 .field-chip:hover {
@@ -271,6 +274,23 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.field-chip-type-inline {
+  font-size: 0.75rem;
+  color: var(--muted-text);
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.field-chip:hover .field-chip-type-inline {
+  max-width: 100px;
+  opacity: 1;
+  margin-left: 0.25rem;
 }
 
 .field-chip-relation-icon {
@@ -281,6 +301,17 @@
 .field-chip-relationship {
   border-color: #9333ea;
   background-color: #faf5ff;
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+}
+
+.field-chip-relationship .field-chip-reference {
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .field-chip-relationship:hover {
@@ -288,9 +319,18 @@
   background-color: #f3e8ff;
 }
 
+.field-chip-relationship:hover .field-chip-reference {
+  max-width: 200px;
+  opacity: 1;
+  margin-left: 0.25rem;
+}
+
 .field-chip-object {
   border-color: #059669;
   background-color: #f0fdf4;
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
 }
 
 .field-chip-object:hover {
