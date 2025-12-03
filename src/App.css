@@ -82,27 +82,29 @@ select {
 
 .tabs {
   display: flex;
-  gap: 5px;
-  margin-bottom: 20px;
+  gap: 0.25rem;
+  margin-bottom: 10px;
   border-bottom: 2px solid #ddd;
-  padding: 0 20px;
+  padding: 0 10px;
   overflow-x: auto;
+  overflow-y: hidden;
+  align-items: center;
 }
 
 .tab {
-  padding: 12px 20px;
+  padding: 0.4rem 0.8rem;
   background-color: #f0f0f0;
   border: none;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  border-top-left-radius: 5px;
+  border-top-right-radius: 5px;
   cursor: pointer;
-  font-size: 0.95em;
+  font-size: 0.75rem;
   font-weight: 500;
   transition: all 0.2s;
   white-space: nowrap;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.4rem;
   position: relative;
   margin-bottom: -2px;
 }
@@ -128,10 +130,10 @@ select {
 }
 
 .close-tab {
-  font-size: 1.5em;
+  font-size: 1.2em;
   line-height: 1;
   cursor: pointer;
-  padding: 0 5px;
+  padding: 0 0.2rem;
   border-radius: 3px;
   transition: background-color 0.2s;
 }
@@ -146,19 +148,19 @@ select {
 
 .sub-tabs {
   display: flex;
-  gap: 10px;
-  margin: 0px 20px 0 20px;
+  gap: 0.3rem;
+  margin: 0px 10px 0 10px;
   border-bottom: 1px solid #ddd;
   padding-bottom: 0;
 }
 
 .sub-tab {
-  padding: 10px 20px;
+  padding: 0.4rem 0.8rem;
   background-color: transparent;
   border: none;
-  border-bottom: 3px solid transparent;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
-  font-size: 0.95em;
+  font-size: 0.75rem;
   font-weight: 500;
   color: #666;
   transition: all 0.2s;
