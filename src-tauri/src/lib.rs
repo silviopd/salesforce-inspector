@@ -363,6 +363,21 @@ pub fn run() {
                 ]
             )?;
             
+            let edit_menu = Submenu::with_items(
+                app,
+                "Edit",
+                true,
+                &[
+                    &PredefinedMenuItem::undo(app, None)?,
+                    &PredefinedMenuItem::redo(app, None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::cut(app, None)?,
+                    &PredefinedMenuItem::copy(app, None)?,
+                    &PredefinedMenuItem::paste(app, None)?,
+                    &PredefinedMenuItem::select_all(app, None)?,
+                ]
+            )?;
+            
             let menu = Menu::with_items(
                 app,
                 &[
@@ -383,6 +398,7 @@ pub fn run() {
                             &PredefinedMenuItem::quit(app, None)?,
                         ]
                     )?,
+                    &edit_menu,
                     &view_menu,
                 ]
             )?;
