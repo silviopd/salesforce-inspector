@@ -183,7 +183,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
           return nameToMatch.toLowerCase().startsWith(term);
         })
       : fieldsToUse;
-    return list.slice(0, MAX_SUGGESTIONS);
+    return list;
   }, [relationshipContext, targetFields, availableFields]);
 
   // Separar campos normales de campos de relación
@@ -221,7 +221,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     const list = term
       ? objectsCache.filter(obj => obj.name.toLowerCase().startsWith(term))
       : objectsCache;
-    return list.slice(0, MAX_SUGGESTIONS);
+    return list;
   }, [objectsCache, currentWord]);
 
   const resultColumns = useMemo(() => {
@@ -673,11 +673,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
             ) : (
               <div className="field-suggestions-empty">
                 No hay coincidencias para "{relationshipContext.searchTerm}".
-              </div>
-            )}
-            {(relationshipContext.isRelationship ? targetFields : availableFields).length > MAX_SUGGESTIONS && (
-              <div className="field-suggestions-hint">
-                Mostrando {MAX_SUGGESTIONS} de {(relationshipContext.isRelationship ? targetFields : availableFields).length} campos. Sigue escribiendo para filtrar más.
               </div>
             )}
               </>

@@ -425,6 +425,30 @@
   gap: 0.5rem;
 }
 
+.field-suggestions-section .field-suggestions-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.field-suggestions-section .field-suggestions-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.field-suggestions-section .field-suggestions-list::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.field-suggestions-section .field-suggestions-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.field-suggestions-section .field-suggestions-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 .field-suggestions-section-title {
   font-size: 0.75rem;
   font-weight: 600;
@@ -433,4 +457,8 @@
   letter-spacing: 0.05em;
   padding-bottom: 0.25rem;
   border-bottom: 1px solid var(--border-color);
+}
+
+.field-suggestions-section:has(.field-chip-relationship) .field-suggestions-list {
+  max-height: 150px;
 }
