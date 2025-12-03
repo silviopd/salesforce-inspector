@@ -23,7 +23,6 @@
 
 .container {
   margin: 0;
-  padding-top: 10vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -81,6 +80,70 @@ select {
   font-size: 1.1em;
 }
 
+.tabs {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #ddd;
+  padding: 0 20px;
+  overflow-x: auto;
+}
+
+.tab {
+  padding: 12px 20px;
+  background-color: #f0f0f0;
+  border: none;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95em;
+  font-weight: 500;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  margin-bottom: -2px;
+}
+
+.tab:hover {
+  background-color: #e0e0e0;
+}
+
+.tab.active {
+  background-color: #0176d3;
+  color: white;
+  border-bottom: 2px solid #0176d3;
+}
+
+.tab.new-tab {
+  background-color: transparent;
+  color: #0176d3;
+  font-weight: 600;
+}
+
+.tab.new-tab:hover {
+  background-color: #f0f0f0;
+}
+
+.close-tab {
+  font-size: 1.5em;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 5px;
+  border-radius: 3px;
+  transition: background-color 0.2s;
+}
+
+.close-tab:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.connection-details {
+  width: 100%;
+}
+
 .login-form {
   max-width: 500px;
   margin: 0 auto;
@@ -132,6 +195,14 @@ select {
 .login-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.login-button.danger {
+  background-color: #c23934;
+}
+
+.login-button.danger:hover:not(:disabled) {
+  background-color: #a12622;
 }
 
 .result {
@@ -224,5 +295,24 @@ button {
     background-color: #2a2a2a;
     border-color: #444;
     color: #f6f6f6;
+  }
+
+  .tab {
+    background-color: #2a2a2a;
+    color: #f6f6f6;
+  }
+
+  .tab:hover {
+    background-color: #3a3a3a;
+  }
+
+  .tab.active {
+    background-color: #0176d3;
+    color: white;
+  }
+
+  .tab.new-tab {
+    background-color: transparent;
+    color: #24c8db;
   }
 }

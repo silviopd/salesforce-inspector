@@ -13,43 +13,50 @@ interface SalesforceAuthResponse {
 const store = new Store("auth.json");
 
 function App() {
-  const [alias, setAlias] = useState("myorg");
+  const [connections, setConnections] = useState<SalesforceAuthResponse[]>([]);
+  const [activeTab, setActiveTab] = useState<number>(0);
+  const [alias, setAlias] = useState("");
   const [instanceUrl, setInstanceUrl] = useState("https://login.salesforce.com");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [authData, setAuthData] = useState<SalesforceAuthResponse | null>(null);
 
-  // Cargar datos guardados al iniciar
+  // Cargar conexiones guardadas al iniciar
   useEffect(() => {
-    loadSavedAuth();
+    loadSavedConnections();
   }, []);
 
-  async function loadSavedAuth() {
+  async function loadSavedConnections() {
     try {
-      const saved = await store.get<SalesforceAuthResponse>("authData");
-      if (saved) {
-        setAuthData(saved);
+      const saved = await store.get<SalesforceAuthResponse[]>("connections");
+      if (saved && saved.length > 0) {
+        setConnections(saved);
       }
     } catch (err) {
-      console.log("No hay datos guardados");
+      console.log("No hay conexiones guardadas");
     }
   }
 
-  async function saveAuthData(data: SalesforceAuthResponse) {
-    await store.set("authData", data);
-    await store.save();
-  }
-
-  async function clearAuthData() {
-    await store.delete("authData");
+  async function saveConnections(conns: SalesforceAuthResponse[]) {
+    await store.set("connections", conns);
     await store.save();
   }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    
+    if (!alias.trim()) {
+      setError("Por favor ingresa un alias");
+      return;
+    }
+
+    // Verificar si el alias ya existe
+    if (connections.some(conn => conn.alias === alias)) {
+      setError(`Ya existe una conexión con el alias "${alias}"`);
+      return;
+    }
+
     setIsLoading(true);
     setError("");
-    setAuthData(null);
 
     try {
       const response = await invoke<SalesforceAuthResponse>("salesforce_login", {
@@ -57,8 +64,11 @@ function App() {
         instanceUrl,
       });
 
-      setAuthData(response);
-      await saveAuthData(response);
+      const newConnections = [...connections, response];
+      setConnections(newConnections);
+      await saveConnections(newConnections);
+      setActiveTab(newConnections.length - 1);
+      setAlias("");
       console.log("Login exitoso:", response);
     } catch (err) {
       setError(`Error de autenticación: ${err}`);
@@ -68,25 +78,63 @@ function App() {
     }
   }
 
-  async function handleLogout() {
-    if (!authData) return;
+  async function handleLogout(index: number) {
+    const connection = connections[index];
+    if (!connection) return;
 
     try {
-      await invoke("salesforce_logout", { alias: authData.alias });
-      await clearAuthData();
-      setAuthData(null);
+      await invoke("salesforce_logout", { alias: connection.alias });
+      const newConnections = connections.filter((_, i) => i !== index);
+      setConnections(newConnections);
+      await saveConnections(newConnections);
+      
+      // Ajustar el tab activo
+      if (activeTab >= newConnections.length && newConnections.length > 0) {
+        setActiveTab(newConnections.length - 1);
+      } else if (newConnections.length === 0) {
+        setActiveTab(0);
+      }
+      
       setError("");
     } catch (err) {
       console.error("Error al hacer logout:", err);
+      setError(`Error al cerrar sesión: ${err}`);
     }
   }
 
+  const activeConnection = connections[activeTab];
+
   return (
     <main className="container">
-      <h1>Salesforce Inspector</h1>
-      <p className="subtitle">Conecta con tu org usando Salesforce CLI</p>
+      {/* Tabs */}
+      {connections.length > 0 && (
+        <div className="tabs">
+          {connections.map((conn, index) => (
+            <button
+              key={conn.alias}
+              className={`tab ${activeTab === index ? 'active' : ''}`}
+              onClick={() => setActiveTab(index)}
+            >
+              {conn.alias}
+              <span 
+                className="close-tab"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleLogout(index);
+                }}
+              >
+                ×
+              </span>
+            </button>
+          ))}
+          <button className="tab new-tab" onClick={() => setActiveTab(-1)}>
+            + Nueva Conexión
+          </button>
+        </div>
+      )}
 
-      {!authData ? (
+      {/* Contenido del tab activo */}
+      {activeTab === -1 || connections.length === 0 ? (
         <form className="login-form" onSubmit={handleLogin}>
           <div className="form-group">
             <label htmlFor="instance-url">Instance URL</label>
@@ -109,7 +157,7 @@ function App() {
               type="text"
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
-              placeholder="myorg"
+              placeholder="Ej: production, sandbox-dev, qa"
               required
             />
           </div>
@@ -121,31 +169,33 @@ function App() {
           )}
 
           <button type="submit" disabled={isLoading} className="login-button">
-            {isLoading ? "Conectando..." : "Login con Salesforce CLI"}
+            {isLoading ? "Conectando..." : "Conectar con Salesforce"}
           </button>
         </form>
-      ) : (
-        <div className="result success">
-          <h3>✅ Autenticación exitosa</h3>
-          <div className="result-details">
-            <p><strong>Alias:</strong> {authData.alias}</p>
-            <p><strong>Username:</strong> {authData.username}</p>
-            
-            <p><strong>Instance URL:</strong></p>
-            <div className="code-block">{authData.instance_url}</div>
-            
-            <p><strong>Access Token:</strong></p>
-            <div className="code-block">{authData.access_token}</div>
+      ) : activeConnection ? (
+        <div className="connection-details">
+          <div className="result success">
+            <h3>✅ Conexión Activa</h3>
+            <div className="result-details">
+              <p><strong>Alias:</strong> {activeConnection.alias}</p>
+              <p><strong>Username:</strong> {activeConnection.username}</p>
+              
+              <p><strong>Instance URL:</strong></p>
+              <div className="code-block">{activeConnection.instance_url}</div>
+              
+              <p><strong>Access Token:</strong></p>
+              <div className="code-block">{activeConnection.access_token}</div>
+            </div>
+            <button 
+              onClick={() => handleLogout(activeTab)} 
+              className="login-button danger"
+              style={{ marginTop: "20px" }}
+            >
+              Cerrar Sesión
+            </button>
           </div>
-          <button 
-            onClick={handleLogout} 
-            className="login-button"
-            style={{ marginTop: "20px" }}
-          >
-            Cerrar Sesión
-          </button>
         </div>
-      )}
+      ) : null}
     </main>
   );
 }
