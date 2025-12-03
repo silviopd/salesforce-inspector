@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::process::Command;
+use tauri::{Emitter, menu::{Menu, MenuItem, PredefinedMenuItem, Submenu}};
 
 const API_VERSION: &str = "v58.0";
 
@@ -73,8 +74,11 @@ async fn salesforce_login(
         .map_err(|e| format!("Error al ejecutar comando sf: {}", e))?;
 
     if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Error en el login: {}", error));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        println!("Login failed - stdout: {}", stdout);
+        println!("Login failed - stderr: {}", stderr);
+        return Err(format!("Error en el login: stdout={}, stderr={}", stdout, stderr));
     }
 
     // Ahora obtener el access token
@@ -344,6 +348,62 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .setup(|app| {
+            // Crear menú
+            let toggle_connection_tabs = MenuItem::with_id(app, "toggle_connection_tabs", "Toggle Connection Tabs", true, None::<&str>)?;
+            let toggle_sub_tabs = MenuItem::with_id(app, "toggle_sub_tabs", "Toggle Sub Tabs", true, None::<&str>)?;
+            
+            let view_menu = Submenu::with_items(
+                app,
+                "View",
+                true,
+                &[
+                    &toggle_connection_tabs,
+                    &toggle_sub_tabs,
+                ]
+            )?;
+            
+            let menu = Menu::with_items(
+                app,
+                &[
+                    #[cfg(target_os = "macos")]
+                    &Submenu::with_items(
+                        app,
+                        "Salesforce Inspector",
+                        true,
+                        &[
+                            &PredefinedMenuItem::about(app, None, None)?,
+                            &PredefinedMenuItem::separator(app)?,
+                            &PredefinedMenuItem::services(app, None)?,
+                            &PredefinedMenuItem::separator(app)?,
+                            &PredefinedMenuItem::hide(app, None)?,
+                            &PredefinedMenuItem::hide_others(app, None)?,
+                            &PredefinedMenuItem::show_all(app, None)?,
+                            &PredefinedMenuItem::separator(app)?,
+                            &PredefinedMenuItem::quit(app, None)?,
+                        ]
+                    )?,
+                    &view_menu,
+                ]
+            )?;
+            
+            app.set_menu(menu)?;
+            
+            // Manejar eventos del menú
+            app.on_menu_event(|app, event| {
+                match event.id().as_ref() {
+                    "toggle_connection_tabs" => {
+                        let _ = app.emit("toggle-connection-tabs", ());
+                    }
+                    "toggle_sub_tabs" => {
+                        let _ = app.emit("toggle-sub-tabs", ());
+                    }
+                    _ => {}
+                }
+            });
+            
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             salesforce_login,
             salesforce_logout,

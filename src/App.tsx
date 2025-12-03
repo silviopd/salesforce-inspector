@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { Store } from "@tauri-apps/plugin-store";
 import QueryTabs from "./components/QueryTabs";
 import "./App.css";
@@ -25,10 +26,26 @@ function App() {
   const [instanceUrl, setInstanceUrl] = useState("https://login.salesforce.com");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showConnectionTabs, setShowConnectionTabs] = useState(true);
+  const [showSubTabs, setShowSubTabs] = useState(true);
 
   // Cargar conexiones guardadas al iniciar
   useEffect(() => {
     loadSavedConnections();
+    
+    // Escuchar eventos del menú
+    const unlistenConnectionTabs = listen('toggle-connection-tabs', () => {
+      setShowConnectionTabs(prev => !prev);
+    });
+    
+    const unlistenSubTabs = listen('toggle-sub-tabs', () => {
+      setShowSubTabs(prev => !prev);
+    });
+    
+    return () => {
+      unlistenConnectionTabs.then(fn => fn());
+      unlistenSubTabs.then(fn => fn());
+    };
   }, []);
 
   async function loadSavedConnections() {
@@ -163,7 +180,7 @@ function App() {
   return (
     <main className="container">
       {/* Tabs */}
-      {connections.length > 0 && (
+      {connections.length > 0 && showConnectionTabs && (
         <div className="tabs">
           {connections.map((conn, index) => (
             <button
@@ -243,26 +260,28 @@ function App() {
       ) : activeConnection ? (
         <div className="connection-details">
           {/* Sub-tabs */}
-          <div className="sub-tabs">
-            <button
-              className={`sub-tab ${currentSubTab === 'info' ? 'active' : ''}`}
-              onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'info')}
-            >
-              Información
-            </button>
-            <button
-              className={`sub-tab ${currentSubTab === 'queries' ? 'active' : ''}`}
-              onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'queries')}
-            >
-              Queries
-            </button>
-            <button
-              className={`sub-tab ${currentSubTab === 'users' ? 'active' : ''}`}
-              onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'users')}
-            >
-              Users
-            </button>
-          </div>
+          {showSubTabs && (
+            <div className="sub-tabs">
+              <button
+                className={`sub-tab ${currentSubTab === 'info' ? 'active' : ''}`}
+                onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'info')}
+              >
+                Información
+              </button>
+              <button
+                className={`sub-tab ${currentSubTab === 'queries' ? 'active' : ''}`}
+                onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'queries')}
+              >
+                Queries
+              </button>
+              <button
+                className={`sub-tab ${currentSubTab === 'users' ? 'active' : ''}`}
+                onClick={() => activeConnection && handleSubTabChange(activeConnection.alias, 'users')}
+              >
+                Users
+              </button>
+            </div>
+          )}
 
           {/* Contenido del sub-tab */}
           <div className="sub-tab-content">
