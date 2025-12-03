@@ -587,16 +587,16 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
         </button>
       </div>
 
-      {/* Sugerencias compactas inline (siempre visible) */}
+      {/* Sugerencias inline (siempre visible, se expande con el botón) */}
       {activeObjectName && (
-        <div className="field-suggestions-inline">
+        <div className={`field-suggestions-inline ${suggestionsExpanded ? 'expanded' : ''}`}>
           <div className="suggestions-inline-label">
             {isInFromClause ? 'Objetos:' : `${relationshipContext.isRelationship ? targetObjectName : activeObjectName}:`}
           </div>
           <div className="suggestions-inline-chips">
             {isInFromClause ? (
               <>
-                {filteredObjects.slice(0, 15).map(obj => (
+                {filteredObjects.map(obj => (
                   <button
                     type="button"
                     key={obj.name}
@@ -607,14 +607,11 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                     {obj.name}
                   </button>
                 ))}
-                {filteredObjects.length > 15 && (
-                  <span className="suggestions-inline-more">+{filteredObjects.length - 15} más</span>
-                )}
               </>
             ) : (
               <>
                 {/* Primero los campos normales */}
-                {normalFields.slice(0, 10).map(field => (
+                {normalFields.map(field => (
                   <button
                     type="button"
                     key={`normal-${field.name}`}
@@ -626,7 +623,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                   </button>
                 ))}
                 {/* Luego los campos relacionados */}
-                {relationshipFields.slice(0, 5).map(field => (
+                {relationshipFields.map(field => (
                   <button
                     type="button"
                     key={`rel-${field.name}`}
@@ -637,132 +634,9 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                     {field.relationshipName || field.name} 🔗
                   </button>
                 ))}
-                {(normalFields.length + relationshipFields.length > 15) && (
-                  <span className="suggestions-inline-more">+{normalFields.length + relationshipFields.length - 15} más</span>
-                )}
               </>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Sugerencias expandidas (con scroll) */}
-      {suggestionsExpanded && (
-        <div className="field-suggestions">
-        <div className="field-suggestions-header">
-          <span>{isInFromClause ? 'Object suggestions' : 'Field suggestions'}</span>
-          {!isInFromClause && activeObjectName && (
-            <span className="field-suggestions-object">
-              {relationshipContext.isRelationship ? targetObjectName : activeObjectName}
-            </span>
-          )}
-          {(loadingFields || loadingObjects) && <span className="field-suggestions-loading">Cargando...</span>}
-        </div>
-        {isInFromClause && objectsError && (
-          <div className="field-suggestions-error">{objectsError}</div>
-        )}
-        {!isInFromClause && fieldsError && (
-          <div className="field-suggestions-error">{fieldsError}</div>
-        )}
-        {isInFromClause ? (
-          <>
-            {filteredObjects.length ? (
-              <div className="field-suggestions-list">
-                {filteredObjects.map(obj => (
-                  <button
-                    type="button"
-                    key={obj.name}
-                    className="field-chip field-chip-object"
-                    onClick={() => insertObjectSuggestion(obj.name)}
-                    title={obj.label && obj.label !== obj.name ? obj.label : undefined}
-                  >
-                    <span className="field-chip-name">{obj.name}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="field-suggestions-empty">
-                {loadingObjects ? 'Cargando objetos...' : 'Escribe "FROM" seguido del nombre del objeto.'}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            {!activeObjectName && !fieldsError && (
-              <div className="field-suggestions-empty">
-                Agrega una cláusula FROM para obtener sugerencias de campos.
-              </div>
-            )}
-            {activeObjectName && !fieldsError && !loadingFields && (
-              <>
-                {filteredSuggestions.length ? (
-              <>
-                {normalFields.length > 0 && (
-                  <div className="field-suggestions-section">
-                    <div className="field-suggestions-section-title">
-                      Campos de {relationshipContext.isRelationship ? targetObjectName : activeObjectName}
-                    </div>
-                    <div className="field-suggestions-list">
-                      {normalFields.map(field => {
-                        const tooltipText = field.label && field.label !== field.name 
-                          ? (field.fieldType ? `${field.label} (${field.fieldType})` : field.label)
-                          : (field.fieldType || undefined);
-                        
-                        return (
-                          <button
-                            type="button"
-                            key={field.name}
-                            className="field-chip"
-                            onClick={() => insertFieldSuggestion(field.name)}
-                            title={tooltipText}
-                          >
-                            <span className="field-chip-name">{field.name}</span>
-                            {field.fieldType && (
-                              <span className="field-chip-type-inline">{field.fieldType}</span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-                
-                {relationshipFields.length > 0 && (
-                  <div className="field-suggestions-section">
-                    <div className="field-suggestions-section-title">
-                      Relaciones
-                    </div>
-                    <div className="field-suggestions-list">
-                      {relationshipFields.map(field => (
-                        <button
-                          type="button"
-                          key={field.name}
-                          className="field-chip field-chip-relationship"
-                          onClick={() => insertFieldSuggestion(field.relationshipName || field.name)}
-                          title={field.label || field.name}
-                        >
-                          <span className="field-chip-name">
-                            {field.relationshipName || field.name}
-                            <span className="field-chip-relation-icon">🔗</span>
-                          </span>
-                          {field.referenceTo && field.referenceTo.length > 0 && (
-                            <span className="field-chip-reference">→ {field.referenceTo.join(', ')}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="field-suggestions-empty">
-                No hay coincidencias para "{relationshipContext.searchTerm}".
-              </div>
-            )}
-              </>
-            )}
-          </>
-        )}
         </div>
       )}
 

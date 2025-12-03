@@ -252,11 +252,18 @@
 
 .field-suggestions-inline {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem;
   padding: 0.5rem 1rem;
   background-color: #fafbfc;
   border-bottom: 1px solid var(--border-color);
+  max-height: 50px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.field-suggestions-inline.expanded {
+  max-height: 150px;
 }
 
 .suggestions-inline-label {
@@ -265,6 +272,7 @@
   color: var(--muted-text);
   white-space: nowrap;
   min-width: fit-content;
+  padding-top: 0.15rem;
 }
 
 .suggestions-inline-chips {
@@ -272,21 +280,37 @@
   flex-wrap: nowrap;
   gap: 0.4rem;
   overflow-x: auto;
+  overflow-y: hidden;
   align-items: center;
   padding: 0.25rem 0;
+  flex: 1;
+}
+
+.field-suggestions-inline.expanded .suggestions-inline-chips {
+  flex-wrap: wrap;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 130px;
+  align-items: flex-start;
 }
 
 .suggestions-inline-chips::-webkit-scrollbar {
+  width: 6px;
   height: 4px;
 }
 
 .suggestions-inline-chips::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
+  border-radius: 3px;
 }
 
 .suggestions-inline-chips::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 2px;
+  border-radius: 3px;
+}
+
+.suggestions-inline-chips::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .field-chip-inline {
