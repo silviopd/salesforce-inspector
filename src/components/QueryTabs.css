@@ -1,9 +1,10 @@
 :root {
-  --dark-bg: #444;
-  --medium-bg: #666;
-  --light-bg: #f5f5f5;
-  --border-color: #555;
-  --text-color: #fff;
+  --dark-bg: #eef2f6;
+  --medium-bg: #ffffff;
+  --light-bg: #f9fbfd;
+  --border-color: #d0d5dd;
+  --text-color: #1f2933;
+  --muted-text: #637381;
   --primary-blue: #007bff;
   --danger-red: #dc3545;
 }
@@ -13,16 +14,18 @@
   flex-direction: column;
   background-color: var(--light-bg);
   box-sizing: border-box; /* Asegurar que el padding no cause desbordamiento */
+  color: var(--text-color);
 }
 
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
   background-color: var(--dark-bg);
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .left-toolbar, .right-toolbar {
@@ -31,23 +34,27 @@
   gap: 0.5rem;
 }
 
-.toolbar select, .toolbar input[type="text"], .toolbar button {
+.toolbar select,
+.toolbar input[type="text"],
+.toolbar button {
   background-color: var(--medium-bg);
   color: var(--text-color);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
-  padding: 0.5rem;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .toolbar button:hover {
-  background-color: #777;
+  background-color: #f3f4f6;
 }
 
 .right-toolbar label {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-  color: var(--text-color);
+  gap: 0.35rem;
+  color: var(--muted-text);
+  font-size: 0.95rem;
 }
 
 .query-tabs-bar {
@@ -60,25 +67,26 @@
 .query-tab {
   padding: 0.5rem 1rem;
   cursor: pointer;
-  background-color: #d0d0d0;
-  border: 1px solid #bbb;
+  background-color: #e8ecf2;
+  border: 1px solid #c6ccd6;
   border-bottom: none;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   margin-right: 0.25rem;
-  color: #333; /* Color de texto más oscuro para pestañas inactivas */
+  color: var(--muted-text);
 }
 
 .query-tab.active {
   background-color: #fff;
-  border-color: #bbb;
+  border-color: #c6ccd6;
   position: relative;
   bottom: -1px;
   border-bottom: 1px solid #fff;
-  color: #000; /* Asegurar que el texto de la pestaña activa sea negro */
+  color: var(--text-color);
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.12);
 }
 
 .close-query-tab {
@@ -101,40 +109,45 @@
 
 .query-editor {
   width: 100%;
-  height: 150px;
-  border: 1px solid #bbb;
+  height: 180px;
+  border: 1px solid var(--border-color);
   padding: 1rem;
-  font-family: monospace;
+  font-family: 'Source Code Pro', monospace;
   resize: vertical;
   margin-top: -1px;
   box-sizing: border-box; /* Añadido para corregir el desbordamiento */
+  background-color: var(--medium-bg);
+  color: var(--text-color);
 }
 
-.query-actions, .export-result-container {
+.query-actions,
+.export-result-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  background-color: #e9e9e9;
-  border-top: 1px solid #ccc;
+  background-color: #f2f4f7;
+  border-top: 1px solid var(--border-color);
 }
 
 .query-actions {
   justify-content: flex-end;
 }
 
-.query-actions button, .result-toolbar button {
+.query-actions button,
+.result-toolbar button {
   padding: 0.5rem 1rem;
-  border: 1px solid #bbb;
-  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
   background-color: #fff; /* Fondo más claro para mayor contraste */
-  color: #333;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  color: var(--text-color);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
 }
 
-.query-actions button:hover, .result-toolbar button:hover {
-  background-color: #f8f8f8;
+.query-actions button:hover,
+.result-toolbar button:hover {
+  background-color: #f3f4f6;
 }
 
 .run-button {
@@ -150,24 +163,85 @@
 }
 
 .icon-button {
-  background-color: #f0f0f0;
+  background-color: #f3f4f6;
   padding: 0.5rem;
 }
 
-.result-toolbar, .result-status {
+.result-toolbar,
+.result-status {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .result-status span {
-  color: #333; /* Color oscuro para el texto de estado */
+  color: var(--muted-text);
 }
 
-.result-toolbar input[type="text"], .result-status button {
-    padding: 0.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: var(--medium-bg);
-    color: var(--text-color);
+.result-toolbar input[type="text"],
+.result-status button {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--medium-bg);
+  color: var(--text-color);
+}
+
+.query-error {
+  margin: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  background-color: #fdecea;
+  color: #c0392b;
+  border: 1px solid #f5b7b1;
+  text-align: left;
+}
+
+.query-results {
+  padding: 1rem;
+  overflow: auto;
+  background-color: var(--medium-bg);
+  border-top: 1px solid var(--border-color);
+}
+
+.query-results-table-wrapper {
+  max-height: 60vh;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: #fff;
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+.query-results-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+
+.query-results-table th,
+.query-results-table td {
+  border: 1px solid #e5e7eb;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.query-results-table th {
+  background-color: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.query-results-table tbody tr:nth-child(odd) {
+  background-color: #f9fafb;
+}
+
+.query-empty-state {
+  padding: 2rem;
+  color: var(--muted-text);
+  text-align: center;
+  background-color: #f4f6f8;
+  border-radius: 8px;
 }

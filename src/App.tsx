@@ -289,8 +289,13 @@ function App() {
               </div>
             )}
 
-            {currentSubTab === 'queries' && (
-              <QueryTabs />
+            {currentSubTab === 'queries' && activeConnection && (
+              <QueryTabs
+                key={activeConnection.alias}
+                instanceUrl={activeConnection.instance_url}
+                accessToken={activeConnection.access_token}
+                connectionAlias={activeConnection.alias}
+              />
             )}
 
             {currentSubTab === 'users' && (
