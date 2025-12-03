@@ -28,10 +28,12 @@ function App() {
   const [error, setError] = useState("");
   const [showConnectionTabs, setShowConnectionTabs] = useState(true);
   const [showSubTabs, setShowSubTabs] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Cargar conexiones guardadas al iniciar
   useEffect(() => {
     loadSavedConnections();
+    loadThemePreference();
     
     // Escuchar eventos del menú
     const unlistenConnectionTabs = listen('toggle-connection-tabs', () => {
@@ -41,12 +43,46 @@ function App() {
     const unlistenSubTabs = listen('toggle-sub-tabs', () => {
       setShowSubTabs(prev => !prev);
     });
+
+    const unlistenTheme = listen('toggle-theme', () => {
+      setIsDarkMode(prev => {
+        const newValue = !prev;
+        saveThemePreference(newValue);
+        return newValue;
+      });
+    });
     
     return () => {
       unlistenConnectionTabs.then(fn => fn());
       unlistenSubTabs.then(fn => fn());
+      unlistenTheme.then(fn => fn());
     };
   }, []);
+
+  // Aplicar tema
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+  }, [isDarkMode]);
+
+  async function loadThemePreference() {
+    try {
+      const saved = await store.get<boolean>("isDarkMode");
+      if (saved !== null && saved !== undefined) {
+        setIsDarkMode(saved);
+      }
+    } catch (err) {
+      console.log("No hay preferencia de tema guardada");
+    }
+  }
+
+  async function saveThemePreference(isDark: boolean) {
+    await store.set("isDarkMode", isDark);
+    await store.save();
+  }
 
   async function loadSavedConnections() {
     try {

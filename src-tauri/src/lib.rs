@@ -352,6 +352,7 @@ pub fn run() {
             // Crear menú
             let toggle_connection_tabs = MenuItem::with_id(app, "toggle_connection_tabs", "Toggle Connection Tabs", true, None::<&str>)?;
             let toggle_sub_tabs = MenuItem::with_id(app, "toggle_sub_tabs", "Toggle Sub Tabs", true, None::<&str>)?;
+            let toggle_theme = MenuItem::with_id(app, "toggle_theme", "Toggle Dark/Light Mode", true, None::<&str>)?;
             
             let view_menu = Submenu::with_items(
                 app,
@@ -360,6 +361,8 @@ pub fn run() {
                 &[
                     &toggle_connection_tabs,
                     &toggle_sub_tabs,
+                    &PredefinedMenuItem::separator(app)?,
+                    &toggle_theme,
                 ]
             )?;
             
@@ -413,6 +416,9 @@ pub fn run() {
                     }
                     "toggle_sub_tabs" => {
                         let _ = app.emit("toggle-sub-tabs", ());
+                    }
+                    "toggle_theme" => {
+                        let _ = app.emit("toggle-theme", ());
                     }
                     _ => {}
                 }
