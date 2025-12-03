@@ -126,6 +126,20 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return fromMatch !== null;
   }, [activeQuery, cursorPosition]);
 
+  const shouldShowFieldSuggestions = useMemo(() => {
+    if (!activeQuery || cursorPosition < 0 || !activeObjectName) {
+      return false;
+    }
+    
+    // No mostrar sugerencias si estamos en la cláusula FROM
+    if (isInFromClause) {
+      return false;
+    }
+    
+    // Si hay un objeto activo (FROM ya fue detectado), mostrar sugerencias
+    return true;
+  }, [activeQuery, cursorPosition, activeObjectName, isInFromClause]);
+
   const relationshipContext = useMemo(() => {
     const parts = currentWord.split('.');
     
@@ -178,12 +192,19 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     }
 
     const term = relationshipContext.searchTerm.trim().toLowerCase();
-    const list = term
-      ? fieldsToUse.filter(field => {
-          const nameToMatch = field.relationshipName || field.name;
-          return nameToMatch.toLowerCase().startsWith(term);
-        })
-      : fieldsToUse;
+    if (!term) {
+      return fieldsToUse;
+    }
+    
+    // Filtrar campos con búsqueda parcial simple
+    const list = fieldsToUse.filter(field => {
+      const nameToMatch = (field.relationshipName || field.name).toLowerCase();
+      const label = (field.label || '').toLowerCase();
+      
+      // Buscar si contiene el término en el nombre o label
+      return nameToMatch.includes(term) || label.includes(term);
+    });
+    
     return list;
   }, [relationshipContext, targetFields, availableFields]);
 
@@ -224,9 +245,19 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       return [] as SalesforceObject[];
     }
     const term = currentWord.trim().toLowerCase();
-    const list = term
-      ? objectsCache.filter(obj => obj.name.toLowerCase().startsWith(term))
-      : objectsCache;
+    if (!term) {
+      return objectsCache;
+    }
+    
+    // Filtrar objetos con búsqueda parcial simple
+    const list = objectsCache.filter(obj => {
+      const name = obj.name.toLowerCase();
+      const label = (obj.label || '').toLowerCase();
+      
+      // Buscar si contiene el término en el nombre o label
+      return name.includes(term) || label.includes(term);
+    });
+    
     return list;
   }, [objectsCache, currentWord]);
 
@@ -588,7 +619,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       </div>
 
       {/* Sugerencias inline (siempre visible, se expande con el botón) */}
-      {activeObjectName && (
+      {(shouldShowFieldSuggestions || isInFromClause) && activeObjectName && (
         <div className={`field-suggestions-inline ${suggestionsExpanded ? 'expanded' : ''}`}>
           <div className="suggestions-inline-label">
             {isInFromClause ? 'Objetos:' : `${relationshipContext.isRelationship ? targetObjectName : activeObjectName}:`}
