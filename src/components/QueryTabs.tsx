@@ -61,6 +61,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const queryEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const [objectsCache, setObjectsCache] = useState<SalesforceObject[]>([]);
   const [loadingObjects, setLoadingObjects] = useState(false);
+  const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
@@ -212,6 +213,11 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     
     return { normalFields: normal, relationshipFields: relationships };
   }, [filteredSuggestions, relationshipContext.isRelationship]);
+
+  // Lista unificada de sugerencias para vista compacta
+  const allSuggestions = useMemo(() => {
+    return [...normalFields, ...relationshipFields];
+  }, [normalFields, relationshipFields]);
 
   const filteredObjects = useMemo(() => {
     if (!objectsCache.length) {
@@ -564,7 +570,85 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
 
       {error && <div className="query-error">{error}</div>}
 
-      <div className="field-suggestions">
+      <div className="query-actions">
+        <div className="action-buttons">
+          <button className="run-button" onClick={runQuery} disabled={isRunning}>
+            {isRunning ? 'Running...' : 'Run Query'}
+          </button>
+          <button disabled>Export Query</button>
+          <button disabled>Query Plan</button>
+        </div>
+        <button 
+          className={`suggestions-toggle-button ${suggestionsExpanded ? 'active' : ''}`}
+          onClick={() => setSuggestionsExpanded(!suggestionsExpanded)}
+          title={suggestionsExpanded ? "Ocultar sugerencias" : "Mostrar todas las sugerencias"}
+        >
+          💡 {suggestionsExpanded ? 'Ocultar' : 'Sugerencias'}
+        </button>
+      </div>
+
+      {/* Sugerencias compactas inline (siempre visible) */}
+      {activeObjectName && (
+        <div className="field-suggestions-inline">
+          <div className="suggestions-inline-label">
+            {isInFromClause ? 'Objetos:' : `${relationshipContext.isRelationship ? targetObjectName : activeObjectName}:`}
+          </div>
+          <div className="suggestions-inline-chips">
+            {isInFromClause ? (
+              <>
+                {filteredObjects.slice(0, 15).map(obj => (
+                  <button
+                    type="button"
+                    key={obj.name}
+                    className="field-chip-inline field-chip-object"
+                    onClick={() => insertObjectSuggestion(obj.name)}
+                    title={obj.label && obj.label !== obj.name ? obj.label : undefined}
+                  >
+                    {obj.name}
+                  </button>
+                ))}
+                {filteredObjects.length > 15 && (
+                  <span className="suggestions-inline-more">+{filteredObjects.length - 15} más</span>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Primero los campos normales */}
+                {normalFields.slice(0, 10).map(field => (
+                  <button
+                    type="button"
+                    key={`normal-${field.name}`}
+                    className="field-chip-inline"
+                    onClick={() => insertFieldSuggestion(field.name)}
+                    title={field.label || field.name}
+                  >
+                    {field.name}
+                  </button>
+                ))}
+                {/* Luego los campos relacionados */}
+                {relationshipFields.slice(0, 5).map(field => (
+                  <button
+                    type="button"
+                    key={`rel-${field.name}`}
+                    className="field-chip-inline field-chip-relationship"
+                    onClick={() => insertFieldSuggestion(field.relationshipName || field.name)}
+                    title={field.label || field.name}
+                  >
+                    {field.relationshipName || field.name} 🔗
+                  </button>
+                ))}
+                {(normalFields.length + relationshipFields.length > 15) && (
+                  <span className="suggestions-inline-more">+{normalFields.length + relationshipFields.length - 15} más</span>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sugerencias expandidas (con scroll) */}
+      {suggestionsExpanded && (
+        <div className="field-suggestions">
         <div className="field-suggestions-header">
           <span>{isInFromClause ? 'Object suggestions' : 'Field suggestions'}</span>
           {!isInFromClause && activeObjectName && (
@@ -679,18 +763,8 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
             )}
           </>
         )}
-      </div>
-
-      <div className="query-actions">
-        <button className="run-button" onClick={runQuery} disabled={isRunning}>
-          {isRunning ? 'Running...' : 'Run Query'}
-        </button>
-        <button disabled>Export Query</button>
-        <button disabled>Query Plan</button>
-        <div className="dropdown-container">
-          <button className="icon-button">💡</button>
         </div>
-      </div>
+      )}
 
       <div className="export-result-container">
         <div className="result-toolbar">
