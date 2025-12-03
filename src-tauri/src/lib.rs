@@ -200,6 +200,7 @@ async fn describe_sobject(
     instance_url: String,
     access_token: String,
     object_name: String,
+    use_tooling: Option<bool>,
 ) -> Result<SalesforceDescribeResult, String> {
     let client = reqwest::Client::new();
     let trimmed_object = object_name.trim();
@@ -208,10 +209,17 @@ async fn describe_sobject(
         return Err("El nombre del objeto es requerido".to_string());
     }
 
+    let endpoint = if use_tooling.unwrap_or(false) {
+        "/tooling/sobjects"
+    } else {
+        "/sobjects"
+    };
+
     let url = format!(
-        "{}/services/data/{}/sobjects/{}/describe",
+        "{}/services/data/{}{}/{}/describe",
         instance_url.trim_end_matches('/'),
         API_VERSION,
+        endpoint,
         trimmed_object
     );
 
@@ -278,16 +286,24 @@ async fn describe_sobject(
 async fn list_sobjects(
     instance_url: String,
     access_token: String,
+    use_tooling: Option<bool>,
 ) -> Result<SalesforceObjectsResult, String> {
     let client = reqwest::Client::new();
 
     println!("list_sobjects called with instance_url: {}", instance_url);
     println!("access_token length: {}", access_token.len());
 
+    let endpoint = if use_tooling.unwrap_or(false) {
+        "/tooling/sobjects"
+    } else {
+        "/sobjects"
+    };
+
     let url = format!(
-        "{}/services/data/{}/sobjects",
+        "{}/services/data/{}{}",
         instance_url.trim_end_matches('/'),
-        API_VERSION
+        API_VERSION,
+        endpoint
     );
 
     println!("Fetching sobjects from: {}", url);

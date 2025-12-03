@@ -266,7 +266,43 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       return [] as string[];
     }
 
-    const columns = new Set<string>();
+    // Intentar extraer columnas del query SOQL
+    const query = activeTabConfig?.query || '';
+    const selectMatch = query.match(/SELECT\s+(.*?)\s+FROM/is);
+    
+    if (selectMatch) {
+      const selectClause = selectMatch[1];
+      
+      // Parsear las columnas del SELECT
+      const queryColumns = selectClause
+        .split(',')
+        .map(col => col.trim())
+        .filter(col => col && col.toLowerCase() !== 'count()');
+      
+      // Verificar si todas las columnas parseadas existen en los resultados
+      const firstRecord = results.records[0] as Record<string, unknown>;
+      const allColumnsExist = queryColumns.every(col => {
+        const keys = col.split('.');
+        let current: any = firstRecord;
+        for (const key of keys) {
+          if (current && typeof current === 'object' && key in current) {
+            current = current[key];
+          } else {
+            return false;
+          }
+        }
+        return true;
+      });
+      
+      if (allColumnsExist && queryColumns.length > 0) {
+        return queryColumns;
+      }
+    }
+
+    // Fallback: usar el orden de las keys del primer registro
+    const columnsOrder: string[] = [];
+    const seenColumns = new Set<string>();
+    
     const flattenKeys = (obj: Record<string, unknown>, prefix = '') => {
       Object.keys(obj).forEach(key => {
         if (key === 'attributes') return;
@@ -277,19 +313,28 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
         if (value && typeof value === 'object' && !Array.isArray(value)) {
           flattenKeys(value as Record<string, unknown>, fullKey);
         } else {
-          columns.add(fullKey);
+          if (!seenColumns.has(fullKey)) {
+            seenColumns.add(fullKey);
+            columnsOrder.push(fullKey);
+          }
         }
       });
     };
 
-    results.records.forEach(record => {
+    // Procesar primero el primer registro para establecer el orden
+    if (results.records[0] && typeof results.records[0] === 'object') {
+      flattenKeys(results.records[0]);
+    }
+
+    // Luego procesar el resto para incluir columnas que puedan faltar en el primero
+    results.records.slice(1).forEach(record => {
       if (record && typeof record === 'object') {
         flattenKeys(record);
       }
     });
 
-    return Array.from(columns);
-  }, [results]);
+    return columnsOrder;
+  }, [results, activeTabConfig?.query]);
 
   const getNestedValue = (obj: Record<string, unknown>, path: string): unknown => {
     const keys = path.split('.');
@@ -332,6 +377,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       instanceUrl,
       accessToken,
       objectName: activeObjectName,
+      useTooling,
     })
       .then(response => {
         if (!isMounted) return;
@@ -354,7 +400,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return () => {
       isMounted = false;
     };
-  }, [activeObjectName, accessToken, connectionAlias, fieldCache, instanceUrl]);
+  }, [activeObjectName, accessToken, connectionAlias, fieldCache, instanceUrl, useTooling]);
 
   useEffect(() => {
     if (!relationshipContext.isRelationship || !targetObjectName) {
@@ -373,6 +419,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       instanceUrl,
       accessToken,
       objectName: targetObjectName,
+      useTooling,
     })
       .then(response => {
         if (!isMounted) return;
@@ -395,7 +442,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return () => {
       isMounted = false;
     };
-  }, [relationshipContext.isRelationship, targetObjectName, accessToken, connectionAlias, fieldCache, instanceUrl]);
+  }, [relationshipContext.isRelationship, targetObjectName, accessToken, connectionAlias, fieldCache, instanceUrl, useTooling]);
 
   useEffect(() => {
     if (!queryEditorRef.current) {
@@ -420,6 +467,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     invoke<{sobjects: SalesforceObject[]}>('list_sobjects', {
       instanceUrl,
       accessToken,
+      useTooling,
     })
       .then(response => {
         if (!isMounted) return;
@@ -439,7 +487,13 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return () => {
       isMounted = false;
     };
-  }, [instanceUrl, accessToken]);
+  }, [instanceUrl, accessToken, useTooling, objectsCache.length]);
+
+  // Clear object cache when switching between standard and Tooling API
+  useEffect(() => {
+    setObjectsCache([]);
+    setFieldCache({});
+  }, [useTooling]);
 
   const updateCursorFromEvent = (event: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = event.currentTarget;
