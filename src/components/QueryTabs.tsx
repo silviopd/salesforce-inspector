@@ -673,6 +673,75 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     insertSuggestion(objectName, true);
   };
 
+  const copyAsExcel = async () => {
+    if (!filteredResults || filteredResults.length === 0) {
+      return;
+    }
+
+    try {
+      // Formato TSV (Tab-Separated Values) que Excel reconoce al pegar
+      const headers = resultColumns.join('\t');
+      const rows = filteredResults.map(record => 
+        resultColumns.map(col => {
+          const value = record[col];
+          if (value === null || value === undefined) return '';
+          return String(value);
+        }).join('\t')
+      ).join('\n');
+      
+      const tsvContent = `${headers}\n${rows}`;
+      await navigator.clipboard.writeText(tsvContent);
+      setResultStatus(`✓ ${filteredResults.length} registros copiados (formato Excel)`);
+      setTimeout(() => setResultStatus(`Resultados: ${filteredResults.length} registros`), 2000);
+    } catch (err) {
+      setError('Error al copiar datos');
+    }
+  };
+
+  const copyAsCSV = async () => {
+    if (!filteredResults || filteredResults.length === 0) {
+      return;
+    }
+
+    try {
+      const escapeCSV = (value: any): string => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const headers = resultColumns.map(escapeCSV).join(',');
+      const rows = filteredResults.map(record =>
+        resultColumns.map(col => escapeCSV(record[col])).join(',')
+      ).join('\n');
+      
+      const csvContent = `${headers}\n${rows}`;
+      await navigator.clipboard.writeText(csvContent);
+      setResultStatus(`✓ ${filteredResults.length} registros copiados (formato CSV)`);
+      setTimeout(() => setResultStatus(`Resultados: ${filteredResults.length} registros`), 2000);
+    } catch (err) {
+      setError('Error al copiar datos');
+    }
+  };
+
+  const copyAsJSON = async () => {
+    if (!filteredResults || filteredResults.length === 0) {
+      return;
+    }
+
+    try {
+      const jsonContent = JSON.stringify(filteredResults, null, 2);
+      await navigator.clipboard.writeText(jsonContent);
+      setResultStatus(`✓ ${filteredResults.length} registros copiados (formato JSON)`);
+      setTimeout(() => setResultStatus(`Resultados: ${filteredResults.length} registros`), 2000);
+    } catch (err) {
+      setError('Error al copiar datos');
+    }
+  };
+
   const runQuery = async () => {
     if (!activeTabConfig) {
       return;
@@ -856,9 +925,9 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
 
       <div className="export-result-container">
         <div className="result-toolbar">
-            <button>Copy (Excel)</button>
-            <button>Copy (CSV)</button>
-            <button>Copy (JSON)</button>
+            <button onClick={copyAsExcel}>Copy (Excel)</button>
+            <button onClick={copyAsCSV}>Copy (CSV)</button>
+            <button onClick={copyAsJSON}>Copy (JSON)</button>
             <button className="icon-button">📥</button>
             <button className="icon-button">🚫</button>
             <button className="danger-button">Delete Records</button>
