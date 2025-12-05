@@ -374,11 +374,9 @@ async fn salesforce_login(
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true)
         .spawn()
         .map_err(|e| format!("Error al ejecutar comando sf: {}", e))?;
-
-    // Obtener el ID del proceso antes del select
-    let child_id = child.id();
 
     // Esperar el resultado o la cancelación
     let output = tokio::select! {
@@ -388,19 +386,7 @@ async fn salesforce_login(
             result.map_err(|e| format!("Error al esperar el comando: {}", e))?
         }
         _ = &mut cancel_rx => {
-            // Cancelación recibida - matar el proceso
-            if let Some(pid) = child_id {
-                #[cfg(unix)]
-                {
-                    unsafe {
-                        libc::kill(pid as i32, libc::SIGTERM);
-                    }
-                }
-                #[cfg(windows)]
-                {
-                    let _ = child.start_kill();
-                }
-            }
+            // Cancelación recibida - el proceso se matará automáticamente con kill_on_drop
             login_state.active_logins.lock().unwrap().remove(&alias);
             return Err("Login cancelado por el usuario".to_string());
         }
