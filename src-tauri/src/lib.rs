@@ -2,8 +2,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::process::Command;
 use tauri::{Emitter, menu::{Menu, MenuItem, PredefinedMenuItem, Submenu}};
+use tauri_plugin_store::StoreExt;
 
 const API_VERSION: &str = "v58.0";
+const MAX_HISTORY_SIZE: usize = 50;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SalesforceAuthResponse {
@@ -51,6 +53,96 @@ struct SalesforceObject {
 #[serde(rename_all = "camelCase")]
 struct SalesforceObjectsResult {
     sobjects: Vec<SalesforceObject>,
+}
+
+#[tauri::command]
+fn get_query_history(
+    org_identifier: String,
+    app: tauri::AppHandle,
+) -> Result<Vec<String>, String> {
+    println!("get_query_history called for org: {}", org_identifier);
+    
+    let store = app.store("store.json")
+        .map_err(|e| {
+            println!("Error accessing store: {}", e);
+            format!("Error al acceder al store: {}", e)
+        })?;
+    
+    // Extraer el dominio único de la org del instanceUrl
+    let org_key = org_identifier
+        .replace("https://", "")
+        .replace("http://", "")
+        .split('/')
+        .next()
+        .unwrap_or(&org_identifier)
+        .to_string();
+    
+    let key = format!("query_history_{}", org_key);
+    println!("Looking for key: {}", key);
+    
+    let history: Vec<String> = store.get(&key)
+        .and_then(|v| {
+            println!("Found value: {:?}", v);
+            serde_json::from_value(v.clone()).ok()
+        })
+        .unwrap_or_else(|| {
+            println!("No history found, returning empty vec");
+            vec![]
+        });
+    
+    println!("Returning {} queries", history.len());
+    Ok(history)
+}
+
+#[tauri::command]
+fn add_to_query_history(
+    org_identifier: String,
+    query: String,
+    app: tauri::AppHandle,
+) -> Result<Vec<String>, String> {
+    println!("add_to_query_history called - org: {}, query: {}", org_identifier, query);
+    
+    let store = app.store("store.json")
+        .map_err(|e| format!("Error al acceder al store: {}", e))?;
+    
+    // Extraer el dominio único de la org del instanceUrl
+    let org_key = org_identifier
+        .replace("https://", "")
+        .replace("http://", "")
+        .split('/')
+        .next()
+        .unwrap_or(&org_identifier)
+        .to_string();
+    
+    let key = format!("query_history_{}", org_key);
+    println!("Using key: {}", key);
+    
+    let mut queries: Vec<String> = store.get(&key)
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    
+    println!("Current history length: {}", queries.len());
+    
+    // Evitar duplicados - si ya existe, moverlo al inicio
+    queries.retain(|q| q != &query);
+    
+    // Insertar al inicio
+    queries.insert(0, query);
+    
+    // Limitar a MAX_HISTORY_SIZE
+    if queries.len() > MAX_HISTORY_SIZE {
+        queries.truncate(MAX_HISTORY_SIZE);
+    }
+    
+    println!("New history length: {}", queries.len());
+    
+    // Guardar en el store
+    store.set(&key, serde_json::to_value(&queries).unwrap());
+    store.save().map_err(|e| format!("Error al guardar: {}", e))?;
+    
+    println!("History saved successfully");
+    
+    Ok(queries)
 }
 
 #[tauri::command]
@@ -449,8 +541,12 @@ pub fn run() {
             salesforce_logout,
             run_soql_query,
             describe_sobject,
-            list_sobjects
+            list_sobjects,
+            get_query_history,
+            add_to_query_history
         ])
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

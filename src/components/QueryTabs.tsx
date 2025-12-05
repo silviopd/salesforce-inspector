@@ -71,12 +71,67 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [comparisonOperator, setComparisonOperator] = useState<'=' | '!=' | '>' | '<' | '>=' | '<='>('=');
   const [columnSearch, setColumnSearch] = useState('');
   const [copyNotification, setCopyNotification] = useState<string | null>(null);
+  const [queryHistory, setQueryHistory] = useState<string[]>([]);
+  const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const historyDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
     setTabs([...tabs, { id: newTabId, name: `Query ${newTabId}`, query: '' }]);
     setActiveTab(newTabId);
   };
+
+  // Cargar historial de queries al montar
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const history = await invoke<string[]>('get_query_history', {
+          orgIdentifier: instanceUrl
+        });
+        setQueryHistory(history || []);
+      } catch (err) {
+        console.error('Error loading query history:', err);
+      }
+    };
+    loadHistory();
+  }, [instanceUrl]);
+
+  // Guardar query en el historial
+  const addToHistory = async (query: string) => {
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) return;
+
+    try {
+      console.log('Adding to history:', { instanceUrl, query: trimmedQuery });
+      const updatedHistory = await invoke<string[]>('add_to_query_history', {
+        orgIdentifier: instanceUrl,
+        query: trimmedQuery
+      });
+      console.log('History updated:', updatedHistory);
+      setQueryHistory(updatedHistory);
+    } catch (err) {
+      console.error('Error saving to query history:', err);
+    }
+  };
+
+  // Click outside para cerrar dropdown de historial
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (historyDropdownRef.current && !historyDropdownRef.current.contains(event.target as Node)) {
+        setShowHistoryDropdown(false);
+        setHistorySearch('');
+      }
+    };
+
+    if (showHistoryDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showHistoryDropdown]);
 
   const closeTab = (tabId: number) => {
     const tabIndex = tabs.findIndex(t => t.id === tabId);
@@ -775,6 +830,9 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       setResults(response);
       const fetched = response.records?.length ?? 0;
       setResultStatus(`Resultados: ${fetched} registros (Total: ${response.totalSize})`);
+      
+      // Agregar al historial después de ejecución exitosa
+      await addToHistory(normalizedQuery);
     } catch (err) {
       const message = typeof err === 'string' ? err : JSON.stringify(err);
       setError(message);
@@ -791,9 +849,92 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
           <select>
             <option>Templates</option>
           </select>
-          <select>
-            <option>Query History</option>
-          </select>
+          <div style={{ position: 'relative' }} ref={historyDropdownRef}>
+            <button
+              onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
+              style={{
+                backgroundColor: queryHistory.length > 0 ? 'var(--medium-bg)' : '#f3f4f6',
+                cursor: queryHistory.length > 0 ? 'pointer' : 'not-allowed'
+              }}
+              disabled={queryHistory.length === 0}
+            >
+              Query History {queryHistory.length > 0 && `(${queryHistory.length})`}
+            </button>
+            {showHistoryDropdown && queryHistory.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '0.25rem',
+                backgroundColor: 'var(--medium-bg)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                minWidth: '400px',
+                maxWidth: '600px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                zIndex: 1000,
+                padding: '0.5rem'
+              }}>
+                <div style={{
+                  marginBottom: '0.5rem',
+                  paddingBottom: '0.5rem',
+                  borderBottom: '1px solid var(--border-color)'
+                }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Buscar en historial..."
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem',
+                      fontSize: '0.75rem',
+                      backgroundColor: 'var(--light-bg)',
+                      color: 'var(--text-color)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted-text)', marginBottom: '0.5rem' }}>
+                  {queryHistory.filter(q => q.toLowerCase().includes(historySearch.toLowerCase())).length} de {queryHistory.length} queries
+                </div>
+                {queryHistory
+                  .filter(q => q.toLowerCase().includes(historySearch.toLowerCase()))
+                  .map((query, index) => (
+                    <div
+                      key={index}
+                      onClick={() => {
+                        if (activeTabConfig) {
+                          handleQueryChange(activeTabConfig.id, query);
+                          setShowHistoryDropdown(false);
+                          setHistorySearch('');
+                        }
+                      }}
+                      style={{
+                        padding: '0.5rem',
+                        marginBottom: '0.25rem',
+                        cursor: 'pointer',
+                        backgroundColor: 'transparent',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        border: '1px solid var(--border-color)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--light-bg)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      {query}
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => {
               if (!activeTabConfig) return;
