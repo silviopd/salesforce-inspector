@@ -206,6 +206,14 @@ function App() {
     console.log("Cancelando login...");
     setLoginAborted(true);
     
+    // Cancelar el proceso de login en el backend
+    try {
+      await invoke('cancel_login', { alias });
+      console.log("Proceso de login cancelado");
+    } catch (err) {
+      console.log('Error al cancelar login:', err);
+    }
+    
     // Intentar matar el proceso del puerto 1717 si quedó abierto
     try {
       await invoke('cleanup_auth_port');

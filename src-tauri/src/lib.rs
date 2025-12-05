@@ -3,9 +3,10 @@ use serde_json::Value;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
-use tauri::{Emitter, Manager, State, menu::{Menu, MenuItem, PredefinedMenuItem, Submenu}};
+use tauri::{Emitter, State, menu::{Menu, MenuItem, PredefinedMenuItem, Submenu}};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::oneshot;
+use tokio::process::Command as TokioCommand;
 
 const API_VERSION: &str = "v58.0";
 const MAX_HISTORY_SIZE: usize = 50;
@@ -19,6 +20,19 @@ impl Default for QueryState {
     fn default() -> Self {
         Self {
             cancellation_tokens: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+// Estado global para tracking de procesos de login
+struct LoginState {
+    active_logins: Arc<Mutex<HashMap<String, oneshot::Sender<()>>>>,
+}
+
+impl Default for LoginState {
+    fn default() -> Self {
+        Self {
+            active_logins: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -335,9 +349,19 @@ fn cleanup_auth_port() -> Result<String, String> {
 async fn salesforce_login(
     alias: String,
     instance_url: String,
+    login_state: State<'_, LoginState>,
 ) -> Result<SalesforceAuthResponse, String> {
+    // Crear canal de cancelación
+    let (cancel_tx, mut cancel_rx) = oneshot::channel::<()>();
+    
+    // Guardar el token de cancelación
+    {
+        let mut logins = login_state.active_logins.lock().unwrap();
+        logins.insert(alias.clone(), cancel_tx);
+    }
+
     // Ejecutar el comando sf org login web
-    let output = Command::new("sf")
+    let mut child = TokioCommand::new("sf")
         .args([
             "org",
             "login",
@@ -348,8 +372,39 @@ async fn salesforce_login(
             &instance_url,
             "--json",
         ])
-        .output()
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .map_err(|e| format!("Error al ejecutar comando sf: {}", e))?;
+
+    // Obtener el ID del proceso antes del select
+    let child_id = child.id();
+
+    // Esperar el resultado o la cancelación
+    let output = tokio::select! {
+        result = child.wait_with_output() => {
+            // Limpiar el token de cancelación
+            login_state.active_logins.lock().unwrap().remove(&alias);
+            result.map_err(|e| format!("Error al esperar el comando: {}", e))?
+        }
+        _ = &mut cancel_rx => {
+            // Cancelación recibida - matar el proceso
+            if let Some(pid) = child_id {
+                #[cfg(unix)]
+                {
+                    unsafe {
+                        libc::kill(pid as i32, libc::SIGTERM);
+                    }
+                }
+                #[cfg(windows)]
+                {
+                    let _ = child.start_kill();
+                }
+            }
+            login_state.active_logins.lock().unwrap().remove(&alias);
+            return Err("Login cancelado por el usuario".to_string());
+        }
+    };
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -366,9 +421,10 @@ async fn salesforce_login(
     }
 
     // Ahora obtener el access token
-    let token_output = Command::new("sf")
+    let token_output = TokioCommand::new("sf")
         .args(["org", "display", "--target-org", &alias, "--json"])
         .output()
+        .await
         .map_err(|e| format!("Error al obtener token: {}", e))?;
 
     if !token_output.status.success() {
@@ -404,9 +460,10 @@ async fn salesforce_login(
 
 #[tauri::command]
 async fn salesforce_logout(alias: String) -> Result<String, String> {
-    let output = Command::new("sf")
+    let output = TokioCommand::new("sf")
         .args(["org", "logout", "--target-org", &alias, "--no-prompt"])
         .output()
+        .await
         .map_err(|e| format!("Error al ejecutar logout: {}", e))?;
 
     if !output.status.success() {
@@ -415,6 +472,24 @@ async fn salesforce_logout(alias: String) -> Result<String, String> {
     }
 
     Ok(format!("Logout exitoso de {}", alias))
+}
+
+#[tauri::command]
+async fn cancel_login(
+    alias: String,
+    login_state: State<'_, LoginState>,
+) -> Result<(), String> {
+    let sender = {
+        let mut logins = login_state.active_logins.lock().unwrap();
+        logins.remove(&alias)
+    };
+
+    if let Some(sender) = sender {
+        let _ = sender.send(());
+        Ok(())
+    } else {
+        Err("No hay login activo para cancelar".to_string())
+    }
 }
 
 #[tauri::command]
@@ -852,9 +927,11 @@ pub fn run() {
             Ok(())
         })
         .manage(QueryState::default())
+        .manage(LoginState::default())
         .invoke_handler(tauri::generate_handler![
             salesforce_login,
             salesforce_logout,
+            cancel_login,
             run_soql_query,
             cancel_query,
             get_query_plan,
