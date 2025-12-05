@@ -70,6 +70,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [comparisonOperator, setComparisonOperator] = useState<'=' | '!=' | '>' | '<' | '>=' | '<='>('=');
   const [columnSearch, setColumnSearch] = useState('');
+  const [copyNotification, setCopyNotification] = useState<string | null>(null);
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
@@ -691,8 +692,8 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       
       const tsvContent = `${headers}\n${rows}`;
       await navigator.clipboard.writeText(tsvContent);
-      setResultStatus(`✓ ${filteredResults.length} registros copiados (formato Excel)`);
-      setTimeout(() => setResultStatus(`Resultados: ${filteredResults.length} registros`), 2000);
+      setCopyNotification(`✓ ${filteredResults.length} registros copiados en formato Excel`);
+      setTimeout(() => setCopyNotification(null), 2000);
     } catch (err) {
       setError('Error al copiar datos');
     }
@@ -720,8 +721,8 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       
       const csvContent = `${headers}\n${rows}`;
       await navigator.clipboard.writeText(csvContent);
-      setResultStatus(`✓ ${filteredResults.length} registros copiados (formato CSV)`);
-      setTimeout(() => setResultStatus(`Resultados: ${filteredResults.length} registros`), 2000);
+      setCopyNotification(`✓ ${filteredResults.length} registros copiados en formato CSV`);
+      setTimeout(() => setCopyNotification(null), 2000);
     } catch (err) {
       setError('Error al copiar datos');
     }
@@ -735,8 +736,8 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     try {
       const jsonContent = JSON.stringify(filteredResults, null, 2);
       await navigator.clipboard.writeText(jsonContent);
-      setResultStatus(`✓ ${filteredResults.length} registros copiados (formato JSON)`);
-      setTimeout(() => setResultStatus(`Resultados: ${filteredResults.length} registros`), 2000);
+      setCopyNotification(`✓ ${filteredResults.length} registros copiados en formato JSON`);
+      setTimeout(() => setCopyNotification(null), 2000);
     } catch (err) {
       setError('Error al copiar datos');
     }
@@ -923,13 +924,31 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
         </div>
       )}
 
+      {copyNotification && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'var(--primary-blue)',
+          color: 'white',
+          padding: '1.5rem 2.5rem',
+          borderRadius: '8px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+          fontSize: '1rem',
+          fontWeight: 'bold',
+          zIndex: 10000,
+          animation: 'fadeIn 0.2s ease-in'
+        }}>
+          {copyNotification}
+        </div>
+      )}
+
       <div className="export-result-container">
         <div className="result-toolbar">
             <button onClick={copyAsExcel}>Copy (Excel)</button>
             <button onClick={copyAsCSV}>Copy (CSV)</button>
             <button onClick={copyAsJSON}>Copy (JSON)</button>
-            <button className="icon-button">📥</button>
-            <button className="icon-button">🚫</button>
             <button className="danger-button">Delete Records</button>
             <div data-column-filter style={{ position: 'relative', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
               <input
