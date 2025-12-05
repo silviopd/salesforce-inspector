@@ -1,11 +1,27 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::process::Command;
-use tauri::{Emitter, menu::{Menu, MenuItem, PredefinedMenuItem, Submenu}};
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use tauri::{Emitter, Manager, State, menu::{Menu, MenuItem, PredefinedMenuItem, Submenu}};
 use tauri_plugin_store::StoreExt;
+use tokio::sync::oneshot;
 
 const API_VERSION: &str = "v58.0";
 const MAX_HISTORY_SIZE: usize = 50;
+
+// Estado global para tracking de queries en ejecución
+struct QueryState {
+    cancellation_tokens: Arc<Mutex<HashMap<String, oneshot::Sender<()>>>>,
+}
+
+impl Default for QueryState {
+    fn default() -> Self {
+        Self {
+            cancellation_tokens: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SalesforceAuthResponse {
@@ -403,10 +419,21 @@ async fn run_soql_query(
     query: String,
     use_tooling: bool,
     include_deleted: bool,
+    query_id: String,
+    state: State<'_, QueryState>,
 ) -> Result<SalesforceQueryResult, String> {
     let client = reqwest::Client::new();
     
     let final_query = query.trim().trim_end_matches(';').to_string();
+    
+    // Crear canal de cancelación
+    let (tx, mut rx) = oneshot::channel::<()>();
+    
+    // Registrar el token de cancelación
+    {
+        let mut tokens = state.cancellation_tokens.lock().unwrap();
+        tokens.insert(query_id.clone(), tx);
+    }
     
     // Usar queryAll si include_deleted está activo (para incluir registros eliminados/archivados)
     let endpoint = if use_tooling {
@@ -420,13 +447,35 @@ async fn run_soql_query(
 
     let url = format!("{}{}", instance_url.trim_end_matches('/'), endpoint);
 
-    let response = client
-        .get(&url)
-        .bearer_auth(&access_token)
-        .query(&[("q", final_query)])
-        .send()
-        .await
-        .map_err(|e| format!("Error al ejecutar SOQL: {}", e))?;
+    // Ejecutar la query con posibilidad de cancelación
+    let query_future = async {
+        client
+            .get(&url)
+            .bearer_auth(&access_token)
+            .query(&[("q", final_query)])
+            .send()
+            .await
+    };
+    
+    // Esperar la query o la cancelación
+    let response = tokio::select! {
+        result = query_future => {
+            // Limpiar el token de cancelación
+            {
+                let mut tokens = state.cancellation_tokens.lock().unwrap();
+                tokens.remove(&query_id);
+            }
+            result.map_err(|e| format!("Error al ejecutar SOQL: {}", e))?
+        }
+        _ = &mut rx => {
+            // Consulta cancelada
+            {
+                let mut tokens = state.cancellation_tokens.lock().unwrap();
+                tokens.remove(&query_id);
+            }
+            return Err("Query cancelada por el usuario".to_string());
+        }
+    };
 
     let status = response.status();
     let body = response
@@ -458,6 +507,19 @@ async fn run_soql_query(
         records,
         next_records_url,
     })
+}
+
+#[tauri::command]
+fn cancel_query(query_id: String, state: State<'_, QueryState>) -> Result<(), String> {
+    let mut tokens = state.cancellation_tokens.lock().unwrap();
+    
+    if let Some(tx) = tokens.remove(&query_id) {
+        // Enviar señal de cancelación
+        let _ = tx.send(());
+        Ok(())
+    } else {
+        Err("Query no encontrada o ya completada".to_string())
+    }
 }
 
 #[tauri::command]
@@ -707,10 +769,12 @@ pub fn run() {
             
             Ok(())
         })
+        .manage(QueryState::default())
         .invoke_handler(tauri::generate_handler![
             salesforce_login,
             salesforce_logout,
             run_soql_query,
+            cancel_query,
             describe_sobject,
             list_sobjects,
             get_query_history,

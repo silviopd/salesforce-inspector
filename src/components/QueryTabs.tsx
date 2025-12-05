@@ -81,6 +81,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [queryLabel, setQueryLabel] = useState('');
   const historyDropdownRef = useRef<HTMLDivElement | null>(null);
   const savedDropdownRef = useRef<HTMLDivElement | null>(null);
+  const currentQueryIdRef = useRef<string | null>(null);
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
@@ -901,6 +902,10 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       .replace(/[\u2018\u2019]/g, "'")  // Comillas simples curvas → rectas
       .replace(/[\u201C\u201D]/g, '"'); // Comillas dobles curvas → rectas
 
+    // Generar ID único para esta query
+    const queryId = `query_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    currentQueryIdRef.current = queryId;
+
     setIsRunning(true);
     setError('');
     setResultStatus('Ejecutando consulta...');
@@ -912,7 +917,13 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
         query: normalizedQuery,
         useTooling,
         includeDeleted,
+        queryId,
       });
+
+      // Verificar si esta es todavía la query activa
+      if (currentQueryIdRef.current !== queryId) {
+        return;
+      }
 
       setResults(response);
       const fetched = response.records?.length ?? 0;
@@ -921,11 +932,44 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       // Agregar al historial después de ejecución exitosa
       await addToHistory(normalizedQuery);
     } catch (err) {
+      // Verificar si esta es todavía la query activa
+      if (currentQueryIdRef.current !== queryId) {
+        return;
+      }
+      
       const message = typeof err === 'string' ? err : JSON.stringify(err);
-      setError(message);
-      setResultStatus('Error al ejecutar la consulta');
+      
+      // No mostrar error si fue cancelación del usuario
+      if (message.includes('cancelada')) {
+        setResultStatus('Consulta cancelada por el usuario');
+      } else {
+        setError(message);
+        setResultStatus('Error al ejecutar la consulta');
+      }
     } finally {
-      setIsRunning(false);
+      // Solo actualizar estado si esta es todavía la query activa
+      if (currentQueryIdRef.current === queryId) {
+        setIsRunning(false);
+        currentQueryIdRef.current = null;
+      }
+    }
+  };
+
+  const stopQuery = async () => {
+    const queryId = currentQueryIdRef.current;
+    if (queryId) {
+      try {
+        await invoke('cancel_query', { queryId });
+        setIsRunning(false);
+        setResultStatus('Consulta cancelada por el usuario');
+        currentQueryIdRef.current = null;
+      } catch (err) {
+        console.error('Error al cancelar query:', err);
+        // Incluso si hay error, resetear el estado
+        setIsRunning(false);
+        setResultStatus('Consulta cancelada');
+        currentQueryIdRef.current = null;
+      }
     }
   };
 
@@ -1247,7 +1291,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
           <button className="run-button" onClick={runQuery} disabled={isRunning}>
             {isRunning ? 'Running...' : 'Run Query'}
           </button>
-          <button disabled>Query Plan</button>
+          <button>Query Plan</button>
         </div>
         <button 
           className={`suggestions-toggle-button ${suggestionsExpanded ? 'active' : ''}`}
@@ -1578,7 +1622,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                 ''
               }
             </span>
-            <button disabled={!isRunning}>Stop</button>
+            <button disabled={!isRunning} onClick={stopQuery}>Stop</button>
         </div>
       </div>
 
