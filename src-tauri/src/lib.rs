@@ -146,6 +146,28 @@ fn add_to_query_history(
 }
 
 #[tauri::command]
+fn cleanup_auth_port() -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("sh")
+            .args(["-c", "lsof -ti :1717 | xargs kill -9 2>/dev/null || true"])
+            .output()
+            .map_err(|e| format!("Error al ejecutar comando: {}", e))?;
+        
+        if output.status.success() {
+            Ok("Puerto limpiado".to_string())
+        } else {
+            Ok("Puerto no estaba en uso".to_string())
+        }
+    }
+    
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok("Limpieza de puerto no implementada para este sistema".to_string())
+    }
+}
+
+#[tauri::command]
 async fn salesforce_login(
     alias: String,
     instance_url: String,
@@ -168,6 +190,12 @@ async fn salesforce_login(
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
+        
+        // Si stdout y stderr están vacíos, probablemente el usuario canceló
+        if stdout.trim().is_empty() && stderr.trim().is_empty() {
+            return Err("Login cancelado por el usuario".to_string());
+        }
+        
         println!("Login failed - stdout: {}", stdout);
         println!("Login failed - stderr: {}", stderr);
         return Err(format!("Error en el login: stdout={}, stderr={}", stdout, stderr));
@@ -543,7 +571,8 @@ pub fn run() {
             describe_sobject,
             list_sobjects,
             get_query_history,
-            add_to_query_history
+            add_to_query_history,
+            cleanup_auth_port
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())

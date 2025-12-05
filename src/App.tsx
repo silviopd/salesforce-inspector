@@ -25,6 +25,8 @@ function App() {
   const [alias, setAlias] = useState("");
   const [instanceUrl, setInstanceUrl] = useState("https://login.salesforce.com");
   const [isLoading, setIsLoading] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [loginAborted, setLoginAborted] = useState(false);
   const [error, setError] = useState("");
   const [showConnectionTabs, setShowConnectionTabs] = useState(true);
   const [showSubTabs, setShowSubTabs] = useState(true);
@@ -127,7 +129,16 @@ function App() {
       return;
     }
 
+    // Limpiar puerto antes de intentar conectar
+    try {
+      await invoke('cleanup_auth_port');
+    } catch (err) {
+      console.log('Puerto ya estaba limpio');
+    }
+
     setIsLoading(true);
+    setIsConnecting(true);
+    setLoginAborted(false);
     setError("");
 
     try {
@@ -135,6 +146,12 @@ function App() {
         alias,
         instanceUrl,
       });
+
+      // Si se canceló mientras esperábamos la respuesta, ignorar el resultado
+      if (loginAborted) {
+        console.log("Login cancelado después de respuesta");
+        return;
+      }
 
       const newConnections = [...connections, response];
       const newSubTabs = { ...connectionSubTabs, [response.alias]: 'queries' };
@@ -146,13 +163,55 @@ function App() {
       setPendingActiveAlias(response.alias);
       setAlias("");
       setError("");
+      setLoginAborted(false);
       console.log("Login exitoso:", response);
     } catch (err) {
+      // Si se canceló, no mostrar error
+      if (loginAborted) {
+        console.log("Error ignorado porque se canceló");
+        return;
+      }
+      
+      const errorMessage = String(err);
+      
+      // Ignorar errores de cancelación
+      if (errorMessage.includes("Login cancelado por el usuario") || 
+          errorMessage.includes("PortInUseError")) {
+        console.log("Login cancelado");
+        return;
+      }
+      
       setError(`Error de autenticación: ${err}`);
       console.error("Error:", err);
     } finally {
-      setIsLoading(false);
+      if (!loginAborted) {
+        setIsLoading(false);
+        setIsConnecting(false);
+      }
     }
+  }
+
+  async function handleCancelLogin() {
+    console.log("Cancelando login...");
+    setLoginAborted(true);
+    
+    // Intentar matar el proceso del puerto 1717 si quedó abierto
+    try {
+      await invoke('cleanup_auth_port');
+      console.log("Puerto limpiado después de cancelar");
+    } catch (err) {
+      console.log('No se pudo limpiar el puerto:', err);
+    }
+    
+    setIsConnecting(false);
+    setIsLoading(false);
+    setError("");
+    
+    // Resetear loginAborted después de un momento para permitir nueva conexión
+    setTimeout(() => {
+      setLoginAborted(false);
+      console.log("LoginAborted reseteado");
+    }, 500);
   }
 
   async function handleLogout(index: number) {
@@ -263,6 +322,7 @@ function App() {
               id="instance-url"
               value={instanceUrl}
               onChange={(e) => setInstanceUrl(e.target.value)}
+              disabled={isConnecting}
               required
             >
               <option value="https://login.salesforce.com">Producción</option>
@@ -279,6 +339,7 @@ function App() {
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
               placeholder="Ej: production, sandbox-dev, qa"
+              disabled={isConnecting}
               required
             />
           </div>
@@ -289,9 +350,20 @@ function App() {
             </div>
           )}
 
-          <button type="submit" disabled={isLoading} className="login-button">
-            {isLoading ? "Conectando..." : "Conectar con Salesforce"}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button type="submit" disabled={isLoading || isConnecting} className="login-button">
+              {isLoading ? "Conectando..." : "Conectar con Salesforce"}
+            </button>
+            {isConnecting && (
+              <button 
+                type="button" 
+                onClick={handleCancelLogin}
+                className="cancel-button"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </form>
       ) : activeConnection ? (
         <div className="connection-details">
