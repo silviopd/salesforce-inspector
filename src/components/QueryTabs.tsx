@@ -74,8 +74,13 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [queryHistory, setQueryHistory] = useState<string[]>([]);
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
+  const [savedSearch, setSavedSearch] = useState('');
   const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
+  const [savedQueries, setSavedQueries] = useState<Record<string, string>>({});
+  const [showSavedDropdown, setShowSavedDropdown] = useState(false);
+  const [queryLabel, setQueryLabel] = useState('');
   const historyDropdownRef = useRef<HTMLDivElement | null>(null);
+  const savedDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
@@ -96,6 +101,21 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       }
     };
     loadHistory();
+  }, [instanceUrl]);
+
+  // Cargar saved queries al montar
+  useEffect(() => {
+    const loadSavedQueries = async () => {
+      try {
+        const saved = await invoke<Record<string, string>>('get_saved_queries', {
+          orgIdentifier: instanceUrl
+        });
+        setSavedQueries(saved || {});
+      } catch (err) {
+        console.error('Error loading saved queries:', err);
+      }
+    };
+    loadSavedQueries();
   }, [instanceUrl]);
 
   // Guardar query en el historial
@@ -143,6 +163,41 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     }
   };
 
+  // Guardar query con label
+  const saveQuery = async () => {
+    if (!queryLabel.trim() || !activeQuery.trim()) {
+      setError('Por favor ingresa un label y una query válida');
+      return;
+    }
+
+    try {
+      const updated = await invoke<Record<string, string>>('save_query', {
+        orgIdentifier: instanceUrl,
+        label: queryLabel.trim(),
+        query: activeQuery.trim()
+      });
+      setSavedQueries(updated);
+      setQueryLabel('');
+      setError('');
+    } catch (err) {
+      console.error('Error saving query:', err);
+      setError('Error al guardar la query');
+    }
+  };
+
+  // Eliminar saved query
+  const deleteSavedQuery = async (label: string) => {
+    try {
+      const updated = await invoke<Record<string, string>>('delete_saved_query', {
+        orgIdentifier: instanceUrl,
+        label
+      });
+      setSavedQueries(updated);
+    } catch (err) {
+      console.error('Error deleting saved query:', err);
+    }
+  };
+
   // Click outside para cerrar dropdown de historial
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -150,16 +205,20 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
         setShowHistoryDropdown(false);
         setHistorySearch('');
       }
+      if (savedDropdownRef.current && !savedDropdownRef.current.contains(event.target as Node)) {
+        setShowSavedDropdown(false);
+        setSavedSearch('');
+      }
     };
 
-    if (showHistoryDropdown) {
+    if (showHistoryDropdown || showSavedDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showHistoryDropdown]);
+  }, [showHistoryDropdown, showSavedDropdown]);
 
   const closeTab = (tabId: number) => {
     const tabIndex = tabs.findIndex(t => t.id === tabId);
@@ -1003,11 +1062,141 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
               </div>
             )}
           </div>
-          <select>
-            <option>Saved Queries</option>
-          </select>
-          <input type="text" placeholder="Query Label" />
-          <button>Save Query</button>
+          <div style={{ position: 'relative' }} ref={savedDropdownRef}>
+            <button
+              onClick={() => setShowSavedDropdown(!showSavedDropdown)}
+              style={{
+                backgroundColor: Object.keys(savedQueries).length > 0 ? 'var(--medium-bg)' : '#f3f4f6',
+                cursor: Object.keys(savedQueries).length > 0 ? 'pointer' : 'not-allowed'
+              }}
+              disabled={Object.keys(savedQueries).length === 0}
+            >
+              Saved Queries {Object.keys(savedQueries).length > 0 && `(${Object.keys(savedQueries).length})`}
+            </button>
+            {showSavedDropdown && Object.keys(savedQueries).length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                marginTop: '0.25rem',
+                backgroundColor: 'var(--medium-bg)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                minWidth: '400px',
+                maxWidth: '600px',
+                maxHeight: '400px',
+                overflowY: 'auto',
+                zIndex: 1000,
+                padding: '0.5rem'
+              }}>
+                <div style={{
+                  marginBottom: '0.5rem',
+                  paddingBottom: '0.5rem',
+                  borderBottom: '1px solid var(--border-color)',
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold'
+                }}>
+                  Queries Guardadas ({Object.keys(savedQueries).length})
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar en queries guardadas..."
+                  value={savedSearch}
+                  onChange={(e) => setSavedSearch(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem',
+                    marginBottom: '0.5rem',
+                    fontSize: '0.75rem',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '4px',
+                    backgroundColor: 'var(--medium-bg)',
+                    color: 'var(--text-color)'
+                  }}
+                />
+                {Object.entries(savedQueries)
+                  .filter(([label, query]) => {
+                    const searchLower = savedSearch.toLowerCase();
+                    return label.toLowerCase().includes(searchLower) ||
+                           query.toLowerCase().includes(searchLower);
+                  })
+                  .map(([label, query]) => (
+                  <div
+                    key={label}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.25rem',
+                      marginBottom: '0.5rem',
+                      padding: '0.5rem',
+                      backgroundColor: 'transparent',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-color)'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--light-bg)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div
+                        onClick={() => {
+                          if (activeTabConfig) {
+                            handleQueryChange(activeTabConfig.id, query);
+                            setShowSavedDropdown(false);
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold',
+                          color: 'var(--primary-blue)'
+                        }}
+                      >
+                        {label}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteSavedQuery(label);
+                        }}
+                        style={{
+                          padding: '0.2rem 0.4rem',
+                          fontSize: '0.7rem',
+                          backgroundColor: 'var(--danger-red)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }}
+                        title="Eliminar query guardada"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div style={{
+                      fontSize: '0.7rem',
+                      fontFamily: 'monospace',
+                      color: 'var(--muted-text)',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      paddingLeft: '0.5rem'
+                    }}>
+                      {query}
+                    </div>
+                  </div>
+                  ))}
+              </div>
+            )}
+          </div>
+          <input 
+            type="text" 
+            placeholder="Query Label"
+            value={queryLabel}
+            onChange={(e) => setQueryLabel(e.target.value)}
+          />
+          <button onClick={saveQuery}>Save Query</button>
         </div>
         <div className="right-toolbar">
           <label>

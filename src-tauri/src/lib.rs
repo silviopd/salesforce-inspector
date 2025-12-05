@@ -201,6 +201,94 @@ fn clear_query_history(
 }
 
 #[tauri::command]
+fn get_saved_queries(
+    org_identifier: String,
+    app: tauri::AppHandle,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let store = app.store("store.json")
+        .map_err(|e| format!("Error al acceder al store: {}", e))?;
+    
+    let org_key = org_identifier
+        .replace("https://", "")
+        .replace("http://", "")
+        .split('/')
+        .next()
+        .unwrap_or(&org_identifier)
+        .to_string();
+    
+    let key = format!("saved_queries_{}", org_key);
+    
+    let saved: std::collections::HashMap<String, String> = store.get(&key)
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    
+    Ok(saved)
+}
+
+#[tauri::command]
+fn save_query(
+    org_identifier: String,
+    label: String,
+    query: String,
+    app: tauri::AppHandle,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let store = app.store("store.json")
+        .map_err(|e| format!("Error al acceder al store: {}", e))?;
+    
+    let org_key = org_identifier
+        .replace("https://", "")
+        .replace("http://", "")
+        .split('/')
+        .next()
+        .unwrap_or(&org_identifier)
+        .to_string();
+    
+    let key = format!("saved_queries_{}", org_key);
+    
+    let mut saved: std::collections::HashMap<String, String> = store.get(&key)
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    
+    saved.insert(label, query);
+    
+    store.set(&key, serde_json::to_value(&saved).unwrap());
+    store.save().map_err(|e| format!("Error al guardar: {}", e))?;
+    
+    Ok(saved)
+}
+
+#[tauri::command]
+fn delete_saved_query(
+    org_identifier: String,
+    label: String,
+    app: tauri::AppHandle,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    let store = app.store("store.json")
+        .map_err(|e| format!("Error al acceder al store: {}", e))?;
+    
+    let org_key = org_identifier
+        .replace("https://", "")
+        .replace("http://", "")
+        .split('/')
+        .next()
+        .unwrap_or(&org_identifier)
+        .to_string();
+    
+    let key = format!("saved_queries_{}", org_key);
+    
+    let mut saved: std::collections::HashMap<String, String> = store.get(&key)
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    
+    saved.remove(&label);
+    
+    store.set(&key, serde_json::to_value(&saved).unwrap());
+    store.save().map_err(|e| format!("Error al guardar: {}", e))?;
+    
+    Ok(saved)
+}
+
+#[tauri::command]
 fn cleanup_auth_port() -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
@@ -629,6 +717,9 @@ pub fn run() {
             add_to_query_history,
             remove_from_query_history,
             clear_query_history,
+            get_saved_queries,
+            save_query,
+            delete_saved_query,
             cleanup_auth_port
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
