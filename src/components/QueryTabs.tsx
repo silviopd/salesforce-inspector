@@ -62,6 +62,9 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [objectsCache, setObjectsCache] = useState<SalesforceObject[]>([]);
   const [loadingObjects, setLoadingObjects] = useState(false);
   const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
+  const [filterText, setFilterText] = useState('');
+  const [filterColumns, setFilterColumns] = useState<string[]>([]);
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false);
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
@@ -356,6 +359,41 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return current;
   };
 
+  // Filtrar resultados basados en el texto y columnas seleccionadas
+  const filteredResults = useMemo(() => {
+    if (!results?.records || !filterText.trim()) {
+      return results?.records || [];
+    }
+
+    const searchText = filterText.toLowerCase();
+    
+    return results.records.filter(record => {
+      // Si hay columnas específicas seleccionadas, buscar solo en esas columnas
+      if (filterColumns.length > 0) {
+        return filterColumns.some(column => {
+          const value = getNestedValue(record as Record<string, unknown>, column);
+          const displayValue = value === null || value === undefined
+            ? ''
+            : typeof value === 'object'
+              ? JSON.stringify(value)
+              : String(value);
+          return displayValue.toLowerCase().includes(searchText);
+        });
+      }
+      
+      // Si no hay columnas seleccionadas, buscar en todas las columnas
+      return resultColumns.some(column => {
+        const value = getNestedValue(record as Record<string, unknown>, column);
+        const displayValue = value === null || value === undefined
+          ? ''
+          : typeof value === 'object'
+            ? JSON.stringify(value)
+            : String(value);
+        return displayValue.toLowerCase().includes(searchText);
+      });
+    });
+  }, [results, filterText, filterColumns, resultColumns]);
+
   useEffect(() => {
     if (!activeObjectName) {
       setFieldsError('');
@@ -494,6 +532,21 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     setObjectsCache([]);
     setFieldCache({});
   }, [useTooling]);
+
+  // Cerrar dropdown de columnas al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showColumnDropdown) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('[data-column-filter]')) {
+          setShowColumnDropdown(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showColumnDropdown]);
 
   const updateCursorFromEvent = (event: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = event.currentTarget;
@@ -738,10 +791,114 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
             <button className="icon-button">📥</button>
             <button className="icon-button">🚫</button>
             <button className="danger-button">Delete Records</button>
-            <input type="text" placeholder="🔍 Filter" />
+            <div data-column-filter style={{ position: 'relative', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+              <input
+                type="text"
+                placeholder="🔍 Filter"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                style={{ width: '150px' }}
+              />
+              <button
+                onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+                style={{ 
+                  padding: '0.25rem 0.5rem', 
+                  fontSize: '0.7rem',
+                  backgroundColor: filterColumns.length > 0 ? 'var(--primary-blue)' : 'var(--medium-bg)',
+                  color: filterColumns.length > 0 ? 'white' : 'var(--text-color)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+                title={filterColumns.length > 0 ? `Filtrar por: ${filterColumns.join(', ')}` : 'Seleccionar columnas'}
+              >
+                📋 {filterColumns.length > 0 ? `(${filterColumns.length})` : ''}
+              </button>
+              {showColumnDropdown && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '0.25rem',
+                  backgroundColor: 'var(--medium-bg)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  maxHeight: '300px',
+                  overflowY: 'auto',
+                  zIndex: 1000,
+                  minWidth: '200px',
+                  padding: '0.5rem'
+                }}>
+                  <div style={{ 
+                    marginBottom: '0.5rem', 
+                    paddingBottom: '0.5rem', 
+                    borderBottom: '1px solid var(--border-color)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
+                      Filtrar por columnas
+                    </span>
+                    {filterColumns.length > 0 && (
+                      <button
+                        onClick={() => setFilterColumns([])}
+                        style={{
+                          fontSize: '0.7rem',
+                          padding: '0.2rem 0.4rem',
+                          backgroundColor: 'transparent',
+                          color: 'var(--primary-blue)',
+                          border: 'none',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </div>
+                  {resultColumns.map(column => (
+                    <label
+                      key={column}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.4rem',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        backgroundColor: 'transparent',
+                        borderRadius: '4px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--light-bg)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={filterColumns.includes(column)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFilterColumns([...filterColumns, column]);
+                          } else {
+                            setFilterColumns(filterColumns.filter(c => c !== column));
+                          }
+                        }}
+                        style={{ marginRight: '0.5rem' }}
+                      />
+                      {column}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
         </div>
         <div className="result-status">
-            <span>{resultStatus}</span>
+            <span>
+              {resultStatus}
+              {filterText && results?.records?.length ? 
+                ` (Mostrando ${filteredResults.length} de ${results.records.length})` : 
+                ''
+              }
+            </span>
             <button disabled={!isRunning}>Stop</button>
         </div>
       </div>
@@ -758,7 +915,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                 </tr>
               </thead>
               <tbody>
-                {results.records.map((record, rowIndex) => (
+                {filteredResults.map((record, rowIndex) => (
                   <tr key={rowIndex}>
                     {resultColumns.map(column => {
                       const value = getNestedValue(record as Record<string, unknown>, column);
