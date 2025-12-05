@@ -15,7 +15,14 @@ interface SalesforceAuthResponse {
 
 type SubTab = 'queries' | 'users' | 'info';
 
-const store = new Store("auth.json");
+let store: Store | null = null;
+
+async function getStore() {
+  if (!store) {
+    store = await Store.load("auth.json");
+  }
+  return store;
+}
 
 function App() {
   const [connections, setConnections] = useState<SalesforceAuthResponse[]>([]);
@@ -72,7 +79,8 @@ function App() {
 
   async function loadThemePreference() {
     try {
-      const saved = await store.get<boolean>("isDarkMode");
+      const s = await getStore();
+      const saved = await s.get<boolean>("isDarkMode");
       if (saved !== null && saved !== undefined) {
         setIsDarkMode(saved);
       }
@@ -82,14 +90,16 @@ function App() {
   }
 
   async function saveThemePreference(isDark: boolean) {
-    await store.set("isDarkMode", isDark);
-    await store.save();
+    const s = await getStore();
+    await s.set("isDarkMode", isDark);
+    await s.save();
   }
 
   async function loadSavedConnections() {
     try {
-      const saved = await store.get<SalesforceAuthResponse[]>("connections");
-      const savedSubTabs = await store.get<Record<string, SubTab>>("subTabs");
+      const s = await getStore();
+      const saved = await s.get<SalesforceAuthResponse[]>("connections");
+      const savedSubTabs = await s.get<Record<string, SubTab>>("subTabs");
 
       if (saved && saved.length > 0) {
         setConnections(saved);
@@ -110,9 +120,10 @@ function App() {
     conns: SalesforceAuthResponse[],
     subTabs: Record<string, SubTab>
   ) {
-    await store.set("connections", conns);
-    await store.set("subTabs", subTabs);
-    await store.save();
+    const s = await getStore();
+    await s.set("connections", conns);
+    await s.set("subTabs", subTabs);
+    await s.save();
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -402,9 +413,6 @@ function App() {
                   
                   <p><strong>Instance URL:</strong></p>
                   <div className="code-block">{activeConnection.instance_url}</div>
-                  
-                  <p><strong>Access Token:</strong></p>
-                  <div className="code-block">{activeConnection.access_token}</div>
                 </div>
                 <button 
                   onClick={() => handleLogout(activeTab)} 
