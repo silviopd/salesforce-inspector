@@ -401,17 +401,21 @@ button {
 }
 
 [data-theme="dark"] .sub-tab {
+  background-color: #262626;
   color: #999;
+  border-color: #444;
 }
 
 [data-theme="dark"] .sub-tab:hover {
-  color: #4a9eff;
-  background-color: #1f1f1f;
+  background-color: #2f2f2f;
+  color: #e0e0e0;
+  border-color: #555;
 }
 
 [data-theme="dark"] .sub-tab.active {
-  color: #4a9eff;
-  border-bottom-color: #4a9eff;
+  background-color: #0176d3;
+  color: white;
+  border-bottom-color: #0176d3;
 }
 
 [data-theme="dark"] .cancel-button {

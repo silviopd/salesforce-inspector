@@ -937,7 +937,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
             <button
               onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
               style={{
-                backgroundColor: queryHistory.length > 0 ? 'var(--medium-bg)' : '#f3f4f6',
                 cursor: queryHistory.length > 0 ? 'pointer' : 'not-allowed'
               }}
               disabled={queryHistory.length === 0}
@@ -1066,7 +1065,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
             <button
               onClick={() => setShowSavedDropdown(!showSavedDropdown)}
               style={{
-                backgroundColor: Object.keys(savedQueries).length > 0 ? 'var(--medium-bg)' : '#f3f4f6',
                 cursor: Object.keys(savedQueries).length > 0 ? 'pointer' : 'not-allowed'
               }}
               disabled={Object.keys(savedQueries).length === 0}
@@ -1249,7 +1247,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
           <button className="run-button" onClick={runQuery} disabled={isRunning}>
             {isRunning ? 'Running...' : 'Run Query'}
           </button>
-          <button disabled>Export Query</button>
           <button disabled>Query Plan</button>
         </div>
         <button 
