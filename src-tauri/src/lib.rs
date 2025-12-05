@@ -339,7 +339,40 @@ fn cleanup_auth_port() -> Result<String, String> {
         }
     }
     
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    {
+        // Intentar con fuser primero, luego con lsof si fuser no está disponible
+        let fuser_output = Command::new("sh")
+            .args(["-c", "fuser -k 1717/tcp 2>/dev/null || lsof -ti :1717 | xargs kill -9 2>/dev/null || true"])
+            .output()
+            .map_err(|e| format!("Error al ejecutar comando: {}", e))?;
+        
+        if fuser_output.status.success() {
+            Ok("Puerto limpiado".to_string())
+        } else {
+            Ok("Puerto no estaba en uso".to_string())
+        }
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        // En Windows, usar netstat y taskkill
+        let output = Command::new("cmd")
+            .args([
+                "/C",
+                "for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :1717') do taskkill /F /PID %a 2>nul"
+            ])
+            .output()
+            .map_err(|e| format!("Error al ejecutar comando: {}", e))?;
+        
+        if output.status.success() {
+            Ok("Puerto limpiado".to_string())
+        } else {
+            Ok("Puerto no estaba en uso".to_string())
+        }
+    }
+    
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         Ok("Limpieza de puerto no implementada para este sistema".to_string())
     }
