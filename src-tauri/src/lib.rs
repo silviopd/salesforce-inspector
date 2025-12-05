@@ -142,16 +142,18 @@ async fn run_soql_query(
     include_deleted: bool,
 ) -> Result<SalesforceQueryResult, String> {
     let client = reqwest::Client::new();
+    
+    let final_query = query.trim().trim_end_matches(';').to_string();
+    
+    // Usar queryAll si include_deleted está activo (para incluir registros eliminados/archivados)
     let endpoint = if use_tooling {
         format!("/services/data/{}/tooling/query", API_VERSION)
+    } else if include_deleted {
+        println!("Usando queryAll para incluir registros eliminados");
+        format!("/services/data/{}/queryAll", API_VERSION)
     } else {
         format!("/services/data/{}/query", API_VERSION)
     };
-
-    let mut final_query = query.trim().trim_end_matches(';').to_string();
-    if include_deleted && !final_query.to_lowercase().contains(" all rows") {
-        final_query.push_str(" ALL ROWS");
-    }
 
     let url = format!("{}{}", instance_url.trim_end_matches('/'), endpoint);
 
