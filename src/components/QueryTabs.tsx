@@ -65,6 +65,11 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [filterText, setFilterText] = useState('');
   const [filterColumns, setFilterColumns] = useState<string[]>([]);
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
+  const [showFilterOptions, setShowFilterOptions] = useState(false);
+  const [filterMode, setFilterMode] = useState<'contains' | 'regex' | 'exact' | 'startsWith' | 'endsWith' | 'empty' | 'notEmpty'>('contains');
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [comparisonOperator, setComparisonOperator] = useState<'=' | '!=' | '>' | '<' | '>=' | '<='>('=');
+  const [columnSearch, setColumnSearch] = useState('');
 
   const addTab = () => {
     const newTabId = tabs.length > 0 ? Math.max(...tabs.map(t => t.id)) + 1 : 1;
@@ -359,40 +364,103 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return current;
   };
 
+  // Función para aplicar el filtro según el modo seleccionado
+  const matchesFilter = (value: unknown, searchText: string): boolean => {
+    const displayValue = value === null || value === undefined
+      ? ''
+      : typeof value === 'object'
+        ? JSON.stringify(value)
+        : String(value);
+
+    // Modos que no requieren texto de búsqueda
+    if (filterMode === 'empty') {
+      return displayValue.trim() === '';
+    }
+    if (filterMode === 'notEmpty') {
+      return displayValue.trim() !== '';
+    }
+
+    if (!searchText.trim()) return true;
+
+    const compareValue = caseSensitive ? displayValue : displayValue.toLowerCase();
+    const compareSearch = caseSensitive ? searchText : searchText.toLowerCase();
+
+    switch (filterMode) {
+      case 'contains':
+        return compareValue.includes(compareSearch);
+      
+      case 'exact':
+        return compareValue === compareSearch;
+      
+      case 'startsWith':
+        return compareValue.startsWith(compareSearch);
+      
+      case 'endsWith':
+        return compareValue.endsWith(compareSearch);
+      
+      case 'regex':
+        try {
+          const flags = caseSensitive ? '' : 'i';
+          const regex = new RegExp(searchText, flags);
+          return regex.test(displayValue);
+        } catch {
+          return false; // Regex inválido
+        }
+      
+      default:
+        return compareValue.includes(compareSearch);
+    }
+  };
+
+  // Función para aplicar comparación numérica
+  const matchesComparison = (value: unknown, searchText: string): boolean => {
+    const numValue = typeof value === 'number' ? value : parseFloat(String(value));
+    const searchNum = parseFloat(searchText);
+
+    if (isNaN(numValue) || isNaN(searchNum)) {
+      return false;
+    }
+
+    switch (comparisonOperator) {
+      case '=': return numValue === searchNum;
+      case '!=': return numValue !== searchNum;
+      case '>': return numValue > searchNum;
+      case '<': return numValue < searchNum;
+      case '>=': return numValue >= searchNum;
+      case '<=': return numValue <= searchNum;
+      default: return false;
+    }
+  };
+
   // Filtrar resultados basados en el texto y columnas seleccionadas
   const filteredResults = useMemo(() => {
-    if (!results?.records || !filterText.trim()) {
+    // Si no hay texto y el modo requiere texto, mostrar todo
+    if (!filterText.trim() && filterMode !== 'empty' && filterMode !== 'notEmpty') {
       return results?.records || [];
     }
 
-    const searchText = filterText.toLowerCase();
+    if (!results?.records) {
+      return [];
+    }
+
+    const searchText = filterText;
     
     return results.records.filter(record => {
       // Si hay columnas específicas seleccionadas, buscar solo en esas columnas
       if (filterColumns.length > 0) {
         return filterColumns.some(column => {
           const value = getNestedValue(record as Record<string, unknown>, column);
-          const displayValue = value === null || value === undefined
-            ? ''
-            : typeof value === 'object'
-              ? JSON.stringify(value)
-              : String(value);
-          return displayValue.toLowerCase().includes(searchText);
+          return matchesFilter(value, searchText);
         });
       }
       
       // Si no hay columnas seleccionadas, buscar en todas las columnas
       return resultColumns.some(column => {
         const value = getNestedValue(record as Record<string, unknown>, column);
-        const displayValue = value === null || value === undefined
-          ? ''
-          : typeof value === 'object'
-            ? JSON.stringify(value)
-            : String(value);
-        return displayValue.toLowerCase().includes(searchText);
+        return matchesFilter(value, searchText);
       });
     });
-  }, [results, filterText, filterColumns, resultColumns]);
+  }, [results, filterText, filterColumns, resultColumns, filterMode, caseSensitive, comparisonOperator]);
 
   useEffect(() => {
     if (!activeObjectName) {
@@ -536,17 +604,20 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   // Cerrar dropdown de columnas al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (showColumnDropdown) {
-        const target = event.target as HTMLElement;
-        if (!target.closest('[data-column-filter]')) {
-          setShowColumnDropdown(false);
-        }
+      const target = event.target as HTMLElement;
+      
+      if (showColumnDropdown && !target.closest('[data-column-filter]')) {
+        setShowColumnDropdown(false);
+      }
+      
+      if (showFilterOptions && !target.closest('[data-filter-options]')) {
+        setShowFilterOptions(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showColumnDropdown]);
+  }, [showColumnDropdown, showFilterOptions]);
 
   const updateCursorFromEvent = (event: React.SyntheticEvent<HTMLTextAreaElement>) => {
     const target = event.currentTarget;
@@ -818,7 +889,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                 <div style={{
                   position: 'absolute',
                   top: '100%',
-                  right: 0,
+                  right: '35px',
                   marginTop: '0.25rem',
                   backgroundColor: 'var(--medium-bg)',
                   border: '1px solid var(--border-color)',
@@ -857,7 +928,26 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                       </button>
                     )}
                   </div>
-                  {resultColumns.map(column => (
+                  <input
+                    type="text"
+                    placeholder="🔍 Buscar columna..."
+                    value={columnSearch}
+                    onChange={(e) => setColumnSearch(e.target.value)}
+                    style={{
+                      width: 'calc(100% - 0.8rem)',
+                      padding: '0.4rem',
+                      marginBottom: '0.5rem',
+                      fontSize: '0.75rem',
+                      backgroundColor: 'var(--light-bg)',
+                      color: 'var(--text-color)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {resultColumns
+                    .filter(column => column.toLowerCase().includes(columnSearch.toLowerCase()))
+                    .map(column => (
                     <label
                       key={column}
                       style={{
@@ -887,6 +977,120 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                       {column}
                     </label>
                   ))}
+                </div>
+              )}
+              <button
+                onClick={() => setShowFilterOptions(!showFilterOptions)}
+                data-filter-options
+                style={{ 
+                  padding: '0.25rem 0.5rem', 
+                  fontSize: '0.7rem',
+                  backgroundColor: filterMode !== 'contains' || caseSensitive ? 'var(--primary-blue)' : 'var(--medium-bg)',
+                  color: filterMode !== 'contains' || caseSensitive ? 'white' : 'var(--text-color)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+                title="Opciones de filtrado"
+              >
+                ⚙️
+              </button>
+              {showFilterOptions && (
+                <div data-filter-options style={{
+                  position: 'absolute',
+                  top: '100%',
+                  right: 0,
+                  marginTop: '0.25rem',
+                  backgroundColor: 'var(--medium-bg)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                  zIndex: 1000,
+                  minWidth: '200px',
+                  padding: '0.5rem'
+                }}>
+                  <div style={{ 
+                    marginBottom: '0.5rem', 
+                    paddingBottom: '0.5rem', 
+                    borderBottom: '1px solid var(--border-color)',
+                    fontSize: '0.75rem',
+                    fontWeight: 'bold'
+                  }}>
+                    Opciones de filtrado
+                  </div>
+                  
+                  <div style={{ marginBottom: '0.75rem' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--muted-text)', marginBottom: '0.25rem' }}>
+                      Modo de búsqueda:
+                    </div>
+                    {[
+                      { value: 'contains', label: '🔍 Contains', desc: 'Contiene el texto' },
+                      { value: 'exact', label: '🎯 Exact', desc: 'Coincidencia exacta' },
+                      { value: 'startsWith', label: '▶️ Starts with', desc: 'Comienza con' },
+                      { value: 'endsWith', label: '◀️ Ends with', desc: 'Termina con' },
+                      { value: 'regex', label: '📝 Regex', desc: 'Expresión regular' },
+                      { value: 'empty', label: '∅ Empty', desc: 'Campo vacío' },
+                      { value: 'notEmpty', label: '≠∅ Not empty', desc: 'Campo no vacío' },
+                    ].map(mode => (
+                      <label
+                        key={mode.value}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0.3rem',
+                          cursor: 'pointer',
+                          fontSize: '0.7rem',
+                          backgroundColor: filterMode === mode.value ? 'var(--light-bg)' : 'transparent',
+                          borderRadius: '4px',
+                          marginBottom: '0.2rem'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--light-bg)'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = filterMode === mode.value ? 'var(--light-bg)' : 'transparent'}
+                      >
+                        <input
+                          type="radio"
+                          name="filterMode"
+                          checked={filterMode === mode.value}
+                          onChange={() => setFilterMode(mode.value as any)}
+                          style={{ marginRight: '0.5rem' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div>{mode.label}</div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--muted-text)' }}>{mode.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div style={{ 
+                    paddingTop: '0.5rem', 
+                    borderTop: '1px solid var(--border-color)'
+                  }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.3rem',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        backgroundColor: 'transparent',
+                        borderRadius: '4px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--light-bg)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={caseSensitive}
+                        onChange={(e) => setCaseSensitive(e.target.checked)}
+                        style={{ marginRight: '0.5rem' }}
+                      />
+                      <div>
+                        <div>Aa Case sensitive</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--muted-text)' }}>Sensible a mayúsculas</div>
+                      </div>
+                    </label>
+                  </div>
                 </div>
               )}
             </div>
