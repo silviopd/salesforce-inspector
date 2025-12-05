@@ -74,6 +74,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [queryHistory, setQueryHistory] = useState<string[]>([]);
   const [showHistoryDropdown, setShowHistoryDropdown] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
+  const [showClearHistoryModal, setShowClearHistoryModal] = useState(false);
   const historyDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const addTab = () => {
@@ -112,6 +113,33 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
       setQueryHistory(updatedHistory);
     } catch (err) {
       console.error('Error saving to query history:', err);
+    }
+  };
+
+  // Eliminar query individual del historial
+  const removeFromHistory = async (query: string) => {
+    try {
+      const updatedHistory = await invoke<string[]>('remove_from_query_history', {
+        orgIdentifier: instanceUrl,
+        query
+      });
+      setQueryHistory(updatedHistory);
+    } catch (err) {
+      console.error('Error removing from query history:', err);
+    }
+  };
+
+  // Limpiar todo el historial
+  const clearHistory = async () => {
+    try {
+      await invoke('clear_query_history', {
+        orgIdentifier: instanceUrl
+      });
+      setQueryHistory([]);
+      setShowClearHistoryModal(false);
+      setShowHistoryDropdown(false);
+    } catch (err) {
+      console.error('Error clearing query history:', err);
     }
   };
 
@@ -846,9 +874,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     <div className="export-query-container">
       <div className="toolbar">
         <div className="left-toolbar">
-          <select>
-            <option>Templates</option>
-          </select>
           <div style={{ position: 'relative' }} ref={historyDropdownRef}>
             <button
               onClick={() => setShowHistoryDropdown(!showHistoryDropdown)}
@@ -899,50 +924,85 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                     }}
                   />
                 </div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--muted-text)', marginBottom: '0.5rem' }}>
-                  {queryHistory.filter(q => q.toLowerCase().includes(historySearch.toLowerCase())).length} de {queryHistory.length} queries
+                <div style={{ fontSize: '0.7rem', color: 'var(--muted-text)', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>{queryHistory.filter(q => q.toLowerCase().includes(historySearch.toLowerCase())).length} de {queryHistory.length} queries</span>
+                  <button
+                    onClick={() => setShowClearHistoryModal(true)}
+                    style={{
+                      padding: '0.3rem 0.6rem',
+                      fontSize: '0.7rem',
+                      backgroundColor: 'var(--danger-red)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Clear All
+                  </button>
                 </div>
                 {queryHistory
                   .filter(q => q.toLowerCase().includes(historySearch.toLowerCase()))
                   .map((query, index) => (
                     <div
                       key={index}
-                      onClick={() => {
-                        if (activeTabConfig) {
-                          handleQueryChange(activeTabConfig.id, query);
-                          setShowHistoryDropdown(false);
-                          setHistorySearch('');
-                        }
-                      }}
                       style={{
-                        padding: '0.5rem',
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '0.5rem',
                         marginBottom: '0.25rem',
-                        cursor: 'pointer',
+                        padding: '0.5rem',
                         backgroundColor: 'transparent',
                         borderRadius: '4px',
-                        fontSize: '0.75rem',
-                        fontFamily: 'monospace',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        border: '1px solid var(--border-color)'
+                        border: '1px solid var(--border-color)',
+                        position: 'relative'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--light-bg)'}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                     >
-                      {query}
+                      <div
+                        onClick={() => {
+                          if (activeTabConfig) {
+                            handleQueryChange(activeTabConfig.id, query);
+                            setShowHistoryDropdown(false);
+                            setHistorySearch('');
+                          }
+                        }}
+                        style={{
+                          flex: 1,
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontFamily: 'monospace',
+                          whiteSpace: 'pre-wrap',
+                          wordBreak: 'break-word'
+                        }}
+                      >
+                        {query}
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFromHistory(query);
+                        }}
+                        style={{
+                          padding: '0.2rem 0.4rem',
+                          fontSize: '0.7rem',
+                          backgroundColor: 'var(--danger-red)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          flexShrink: 0
+                        }}
+                        title="Eliminar query"
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
               </div>
             )}
           </div>
-          <button
-            onClick={() => {
-              if (!activeTabConfig) return;
-              handleQueryChange(activeTabConfig.id, DEFAULT_QUERY);
-            }}
-          >
-            Clear
-          </button>
           <select>
             <option>Saved Queries</option>
           </select>
@@ -1371,6 +1431,64 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
           </div>
         )}
       </div>
+
+      {/* Modal de confirmación para limpiar historial */}
+      {showClearHistoryModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'var(--medium-bg)',
+            padding: '2rem',
+            borderRadius: '8px',
+            maxWidth: '400px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)'
+          }}>
+            <h3 style={{ marginTop: 0, color: 'var(--text-color)' }}>Confirmar eliminación</h3>
+            <p style={{ color: 'var(--text-color)' }}>
+              ¿Estás seguro de que deseas eliminar todas las {queryHistory.length} queries del historial?
+              Esta acción no se puede deshacer.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+              <button
+                onClick={() => setShowClearHistoryModal(false)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: 'var(--medium-bg)',
+                  color: 'var(--text-color)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={clearHistory}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: 'var(--danger-red)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Eliminar Todo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

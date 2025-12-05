@@ -146,6 +146,61 @@ fn add_to_query_history(
 }
 
 #[tauri::command]
+fn remove_from_query_history(
+    org_identifier: String,
+    query: String,
+    app: tauri::AppHandle,
+) -> Result<Vec<String>, String> {
+    let store = app.store("store.json")
+        .map_err(|e| format!("Error al acceder al store: {}", e))?;
+    
+    let org_key = org_identifier
+        .replace("https://", "")
+        .replace("http://", "")
+        .split('/')
+        .next()
+        .unwrap_or(&org_identifier)
+        .to_string();
+    
+    let key = format!("query_history_{}", org_key);
+    
+    let mut queries: Vec<String> = store.get(&key)
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    
+    queries.retain(|q| q != &query);
+    
+    store.set(&key, serde_json::to_value(&queries).unwrap());
+    store.save().map_err(|e| format!("Error al guardar: {}", e))?;
+    
+    Ok(queries)
+}
+
+#[tauri::command]
+fn clear_query_history(
+    org_identifier: String,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let store = app.store("store.json")
+        .map_err(|e| format!("Error al acceder al store: {}", e))?;
+    
+    let org_key = org_identifier
+        .replace("https://", "")
+        .replace("http://", "")
+        .split('/')
+        .next()
+        .unwrap_or(&org_identifier)
+        .to_string();
+    
+    let key = format!("query_history_{}", org_key);
+    
+    store.set(&key, serde_json::to_value::<Vec<String>>(vec![]).unwrap());
+    store.save().map_err(|e| format!("Error al guardar: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
 fn cleanup_auth_port() -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
@@ -572,6 +627,8 @@ pub fn run() {
             list_sobjects,
             get_query_history,
             add_to_query_history,
+            remove_from_query_history,
+            clear_query_history,
             cleanup_auth_port
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
