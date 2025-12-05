@@ -53,6 +53,8 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [error, setError] = useState('');
   const [resultStatus, setResultStatus] = useState('Ready');
   const [results, setResults] = useState<SalesforceQueryResult | null>(null);
+  const [queryPlan, setQueryPlan] = useState<any>(null);
+  const [showQueryPlan, setShowQueryPlan] = useState(false);
   const [fieldCache, setFieldCache] = useState<Record<string, SalesforceFieldDefinition[]>>({});
   const [loadingFields, setLoadingFields] = useState(false);
   const [fieldsError, setFieldsError] = useState('');
@@ -973,6 +975,69 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     }
   };
 
+  const getQueryPlan = async () => {
+    if (!activeTabConfig) {
+      return;
+    }
+
+    const trimmedQuery = activeTabConfig.query.trim();
+    if (!trimmedQuery) {
+      setError('Ingresa una consulta SOQL válida.');
+      return;
+    }
+
+    // Normalizar comillas
+    const normalizedQuery = trimmedQuery
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"');
+
+    // Generar ID único para esta operación
+    const queryId = `plan_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    currentQueryIdRef.current = queryId;
+
+    setIsRunning(true);
+    setError('');
+    setResultStatus('Obteniendo query plan...');
+
+    try {
+      const response = await invoke<{plans: any[]}>('get_query_plan', {
+        instanceUrl,
+        accessToken,
+        query: normalizedQuery,
+        queryId,
+      });
+
+      // Verificar si esta es todavía la operación activa
+      if (currentQueryIdRef.current !== queryId) {
+        return;
+      }
+
+      setQueryPlan(response.plans);
+      setShowQueryPlan(true);
+      setResultStatus('Query plan obtenido exitosamente');
+    } catch (err) {
+      // Verificar si esta es todavía la operación activa
+      if (currentQueryIdRef.current !== queryId) {
+        return;
+      }
+      
+      const message = typeof err === 'string' ? err : JSON.stringify(err);
+      
+      if (message.includes('cancelado')) {
+        setResultStatus('Query plan cancelado por el usuario');
+      } else {
+        setError(message);
+        setResultStatus('Error al obtener query plan');
+      }
+    } finally {
+      // Solo actualizar estado si esta es todavía la operación activa
+      if (currentQueryIdRef.current === queryId) {
+        setIsRunning(false);
+        currentQueryIdRef.current = null;
+      }
+    }
+  };
+
   return (
     <div className="export-query-container">
       <div className="toolbar">
@@ -1291,7 +1356,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
           <button className="run-button" onClick={runQuery} disabled={isRunning}>
             {isRunning ? 'Running...' : 'Run Query'}
           </button>
-          <button>Query Plan</button>
+          <button onClick={getQueryPlan} disabled={isRunning}>Query Plan</button>
         </div>
         <button 
           className={`suggestions-toggle-button ${suggestionsExpanded ? 'active' : ''}`}
@@ -1650,6 +1715,33 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
                             : String(value);
                       return <td key={column}>{displayValue}</td>;
                     })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : showQueryPlan && queryPlan ? (
+          <div className="query-results-table">
+            <table>
+              <thead>
+                <tr>
+                  {Object.keys(queryPlan[0] || {}).map(key => (
+                    <th key={key}>{key}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {queryPlan.map((plan: any, index: number) => (
+                  <tr key={index}>
+                    {Object.entries(plan).map(([key, value]) => (
+                      <td key={key}>
+                        {value === null || value === undefined
+                          ? ''
+                          : typeof value === 'object'
+                            ? JSON.stringify(value)
+                            : String(value)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

@@ -66,6 +66,11 @@ struct SalesforceObject {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct QueryPlanResult {
+    plans: Vec<Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SalesforceObjectsResult {
     sobjects: Vec<SalesforceObject>,
@@ -523,6 +528,83 @@ fn cancel_query(query_id: String, state: State<'_, QueryState>) -> Result<(), St
 }
 
 #[tauri::command]
+async fn get_query_plan(
+    instance_url: String,
+    access_token: String,
+    query: String,
+    query_id: String,
+    state: State<'_, QueryState>,
+) -> Result<QueryPlanResult, String> {
+    let client = reqwest::Client::new();
+    
+    let final_query = query.trim().trim_end_matches(';').to_string();
+    
+    // Crear canal de cancelación
+    let (tx, mut rx) = oneshot::channel::<()>();
+    
+    // Registrar el token de cancelación
+    {
+        let mut tokens = state.cancellation_tokens.lock().unwrap();
+        tokens.insert(query_id.clone(), tx);
+    }
+    
+    let url = format!("{}/services/data/{}/query/", 
+        instance_url.trim_end_matches('/'), 
+        API_VERSION
+    );
+
+    // Ejecutar la query plan con posibilidad de cancelación
+    let query_future = async {
+        client
+            .get(&url)
+            .bearer_auth(&access_token)
+            .query(&[("explain", final_query)])
+            .send()
+            .await
+    };
+    
+    // Esperar la query plan o la cancelación
+    let response = tokio::select! {
+        result = query_future => {
+            // Limpiar el token de cancelación
+            {
+                let mut tokens = state.cancellation_tokens.lock().unwrap();
+                tokens.remove(&query_id);
+            }
+            result.map_err(|e| format!("Error al obtener query plan: {}", e))?
+        }
+        _ = &mut rx => {
+            // Consulta cancelada
+            {
+                let mut tokens = state.cancellation_tokens.lock().unwrap();
+                tokens.remove(&query_id);
+            }
+            return Err("Query plan cancelado por el usuario".to_string());
+        }
+    };
+
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Error al leer respuesta: {}", e))?;
+
+    if !status.is_success() {
+        return Err(format!("Error de Salesforce ({}): {}", status, body));
+    }
+
+    let value: Value = serde_json::from_str(&body)
+        .map_err(|e| format!("Error al parsear respuesta: {}", e))?;
+
+    let plans = value.get("plans")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.clone())
+        .unwrap_or_default();
+
+    Ok(QueryPlanResult { plans })
+}
+
+#[tauri::command]
 async fn describe_sobject(
     instance_url: String,
     access_token: String,
@@ -775,6 +857,7 @@ pub fn run() {
             salesforce_logout,
             run_soql_query,
             cancel_query,
+            get_query_plan,
             describe_sobject,
             list_sobjects,
             get_query_history,
