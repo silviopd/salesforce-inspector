@@ -1445,7 +1445,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
             <button onClick={copyAsExcel}>Copy (Excel)</button>
             <button onClick={copyAsCSV}>Copy (CSV)</button>
             <button onClick={copyAsJSON}>Copy (JSON)</button>
-            <button className="danger-button">Delete Records</button>
+            {/* <button className="danger-button">Delete Records</button> */}
             <div data-column-filter style={{ position: 'relative', display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
               <input
                 type="text"
