@@ -1,6 +1,12 @@
 name: Build Salesforce Inspector
 
 on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - '*'       # corre build cuando hay push de tag
+  pull_request:
+    branches: [ main, master ]
   release:
     types: [published]   # 🔹 corre release cuando publicas una release desde la UI
   workflow_dispatch:
