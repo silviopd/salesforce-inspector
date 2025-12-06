@@ -1,12 +1,6 @@
 name: Build Salesforce Inspector
 
 on:
-  push:
-    branches: [ main, master ]
-    tags:
-      - '*'       # corre build cuando hay push de tag
-  pull_request:
-    branches: [ main, master ]
   release:
     types: [published]   # 🔹 corre release cuando publicas una release desde la UI
   workflow_dispatch:
@@ -67,6 +61,18 @@ jobs:
         run: npm run tauri build
 
       # ----------------------------
+      # Crear ZIP portable en Windows
+      # ----------------------------
+      - name: Crear ZIP portable (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          cd src-tauri/target/release
+          New-Item -ItemType Directory -Force -Path portable | Out-Null
+          Copy-Item .\salesforce-inspector-app.exe .\portable\salesforce-inspector-app.exe
+          Compress-Archive -Path .\portable\* -DestinationPath .\salesforce-inspector-portable.zip -Force
+
+      # ----------------------------
       # Upload artifacts por OS
       # ----------------------------
 
@@ -88,6 +94,7 @@ jobs:
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/salesforce-inspector-app.exe
+            src-tauri/target/release/salesforce-inspector-portable.zip
           if-no-files-found: error
 
       - name: Upload Linux artifacts
@@ -144,12 +151,13 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.release.tag_name }}      # 🔹 importante
-          name: ${{ github.event.release.name }}              # opcional, usa el mismo nombre de la release
+          tag_name: ${{ github.event.release.tag_name }}
+          name: ${{ github.event.release.name }}
           files: |
             artifacts/macos/**/*.dmg
             artifacts/windows/**/*.msi
             artifacts/windows/**/*.exe
+            artifacts/windows/**/*portable*.zip
             artifacts/linux/**/*.deb
             artifacts/linux/**/*.AppImage
           draft: false
