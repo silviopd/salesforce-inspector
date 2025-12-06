@@ -149,6 +149,7 @@ jobs:
           files: |
             artifacts/macos/**/*.dmg
             artifacts/windows/**/*.msi
+            artifacts/windows/**/*.exe
             artifacts/linux/**/*.deb
             artifacts/linux/**/*.AppImage
           draft: false
