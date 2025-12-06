@@ -8,7 +8,7 @@ on:
   pull_request:
     branches: [ main, master ]
   release:
-    types: [published]   # 🔹 corre release cuando publicas una release desde la UI
+    types: [ published ]   # corre release cuando publicas una release desde la UI
   workflow_dispatch:
 
 jobs:
@@ -67,15 +67,24 @@ jobs:
         run: npm run tauri build
 
       # ----------------------------
-      # Crear ZIP portable en Windows
+      # Crear ZIP portable en Windows (exe + DLLs)
       # ----------------------------
       - name: Crear ZIP portable (Windows)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
           cd src-tauri/target/release
+
+          # Crear carpeta portable
           New-Item -ItemType Directory -Force -Path portable | Out-Null
-          Copy-Item .\salesforce-inspector-app.exe .\portable\salesforce-inspector-app.exe
+
+          # Copiar el exe principal
+          Copy-Item .\salesforce-inspector-app.exe .\portable\
+
+          # Copiar TODAS las DLL necesarias
+          Get-ChildItem -Filter *.dll | Copy-Item -Destination .\portable\
+
+          # Comprimir todo como portable.zip
           Compress-Archive -Path .\portable\* -DestinationPath .\salesforce-inspector-portable.zip -Force
 
       # ----------------------------
