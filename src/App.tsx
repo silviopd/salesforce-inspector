@@ -165,7 +165,7 @@ function App() {
       }
 
       const newConnections = [...connections, response];
-      const newSubTabs = { ...connectionSubTabs, [response.alias]: 'queries' };
+      const newSubTabs: Record<string, SubTab> = { ...connectionSubTabs, [response.alias]: 'queries' as SubTab };
 
       setConnections(newConnections);
       setConnectionSubTabs(newSubTabs);
@@ -238,13 +238,22 @@ function App() {
     if (!connection) return;
 
     try {
-      await invoke("salesforce_logout", { alias: connection.alias });
+      // Intentar logout del CLI, pero continuar aunque falle
+      try {
+        await invoke("salesforce_logout", { alias: connection.alias });
+      } catch (cliErr) {
+        console.warn("No se pudo hacer logout del CLI (la org puede no existir):", cliErr);
+        // Continuar de todos modos para limpiar la app
+      }
+
+      // Eliminar conexión del estado y Store
       const newConnections = connections.filter((_, i) => i !== index);
       const { [connection.alias]: _, ...remainingSubTabs } = connectionSubTabs;
 
       setConnections(newConnections);
       setConnectionSubTabs(remainingSubTabs);
       await persistState(newConnections, remainingSubTabs);
+      
       if (pendingActiveAlias === connection.alias) {
         setPendingActiveAlias(null);
       }
