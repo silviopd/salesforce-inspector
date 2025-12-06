@@ -40,7 +40,6 @@ interface QueryTabsProps {
 }
 
 const DEFAULT_QUERY = 'SELECT Id, Name FROM Account LIMIT 200';
-const MAX_SUGGESTIONS = 60;
 
 const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connectionAlias }) => {
   const [tabs, setTabs] = useState<QueryTabConfig[]>([
@@ -56,13 +55,13 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [queryPlan, setQueryPlan] = useState<any>(null);
   const [showQueryPlan, setShowQueryPlan] = useState(false);
   const [fieldCache, setFieldCache] = useState<Record<string, SalesforceFieldDefinition[]>>({});
-  const [loadingFields, setLoadingFields] = useState(false);
-  const [fieldsError, setFieldsError] = useState('');
-  const [objectsError, setObjectsError] = useState('');
+  const [_loadingFields, setLoadingFields] = useState(false);
+  const [_fieldsError, setFieldsError] = useState('');
+  const [_objectsError, setObjectsError] = useState('');
   const [cursorPosition, setCursorPosition] = useState(0);
   const queryEditorRef = useRef<HTMLTextAreaElement | null>(null);
   const [objectsCache, setObjectsCache] = useState<SalesforceObject[]>([]);
-  const [loadingObjects, setLoadingObjects] = useState(false);
+  const [_loadingObjects, setLoadingObjects] = useState(false);
   const [suggestionsExpanded, setSuggestionsExpanded] = useState(false);
   const [filterText, setFilterText] = useState('');
   const [filterColumns, setFilterColumns] = useState<string[]>([]);
@@ -70,7 +69,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
   const [showFilterOptions, setShowFilterOptions] = useState(false);
   const [filterMode, setFilterMode] = useState<'contains' | 'regex' | 'exact' | 'startsWith' | 'endsWith' | 'empty' | 'notEmpty'>('contains');
   const [caseSensitive, setCaseSensitive] = useState(false);
-  const [comparisonOperator, setComparisonOperator] = useState<'=' | '!=' | '>' | '<' | '>=' | '<='>('=');
   const [columnSearch, setColumnSearch] = useState('');
   const [copyNotification, setCopyNotification] = useState<string | null>(null);
   const [queryHistory, setQueryHistory] = useState<string[]>([]);
@@ -389,11 +387,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     return { normalFields: normal, relationshipFields: relationships };
   }, [filteredSuggestions, relationshipContext.isRelationship]);
 
-  // Lista unificada de sugerencias para vista compacta
-  const allSuggestions = useMemo(() => {
-    return [...normalFields, ...relationshipFields];
-  }, [normalFields, relationshipFields]);
-
   const filteredObjects = useMemo(() => {
     if (!objectsCache.length) {
       return [] as SalesforceObject[];
@@ -558,26 +551,6 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
     }
   };
 
-  // Función para aplicar comparación numérica
-  const matchesComparison = (value: unknown, searchText: string): boolean => {
-    const numValue = typeof value === 'number' ? value : parseFloat(String(value));
-    const searchNum = parseFloat(searchText);
-
-    if (isNaN(numValue) || isNaN(searchNum)) {
-      return false;
-    }
-
-    switch (comparisonOperator) {
-      case '=': return numValue === searchNum;
-      case '!=': return numValue !== searchNum;
-      case '>': return numValue > searchNum;
-      case '<': return numValue < searchNum;
-      case '>=': return numValue >= searchNum;
-      case '<=': return numValue <= searchNum;
-      default: return false;
-    }
-  };
-
   // Filtrar resultados basados en el texto y columnas seleccionadas
   const filteredResults = useMemo(() => {
     // Si no hay texto y el modo requiere texto, mostrar todo
@@ -606,7 +579,7 @@ const QueryTabs: React.FC<QueryTabsProps> = ({ instanceUrl, accessToken, connect
         return matchesFilter(value, searchText);
       });
     });
-  }, [results, filterText, filterColumns, resultColumns, filterMode, caseSensitive, comparisonOperator]);
+  }, [results, filterText, filterColumns, resultColumns, filterMode, caseSensitive]);
 
   useEffect(() => {
     if (!activeObjectName) {
