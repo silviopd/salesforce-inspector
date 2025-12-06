@@ -144,6 +144,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.release.tag_name }}      # 🔹 importante
+          name: ${{ github.event.release.name }}              # opcional, usa el mismo nombre de la release
           files: |
             artifacts/macos/**/*.dmg
             artifacts/windows/**/*.msi
