@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, master ]
     tags:
-      - 'v*.*.*'
+      - 'v*'
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -108,16 +108,20 @@ jobs:
         with:
           path: artifacts
 
+      - name: Display structure of downloaded files
+        run: ls -R artifacts/
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/salesforce-inspector-macos/*.dmg
-            artifacts/salesforce-inspector-windows/*.msi
-            artifacts/salesforce-inspector-linux/*.deb
-            artifacts/salesforce-inspector-linux/*.AppImage
+            artifacts/salesforce-inspector-macos/src-tauri/target/release/bundle/dmg/*.dmg
+            artifacts/salesforce-inspector-windows/src-tauri/target/release/bundle/msi/*.msi
+            artifacts/salesforce-inspector-linux/src-tauri/target/release/bundle/deb/*.deb
+            artifacts/salesforce-inspector-linux/src-tauri/target/release/bundle/appimage/*.AppImage
           draft: false
           prerelease: false
           generate_release_notes: true
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
