@@ -394,7 +394,7 @@ async fn salesforce_login(
     }
 
     // Ejecutar el comando sf org login web
-    let mut child = TokioCommand::new("sf")
+    let child = TokioCommand::new("sf")
         .args([
             "org",
             "login",
